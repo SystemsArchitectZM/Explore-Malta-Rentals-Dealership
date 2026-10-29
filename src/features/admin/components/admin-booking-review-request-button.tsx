@@ -2,7 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 type AdminBookingReviewRequestButtonProps = Readonly<{
   bookingId: string;
@@ -11,6 +11,7 @@ type AdminBookingReviewRequestButtonProps = Readonly<{
   sendingLabel: string;
   successMessage: string;
   fallbackError: string;
+  children?: ReactNode;
 }>;
 
 export function AdminBookingReviewRequestButton({
@@ -20,6 +21,7 @@ export function AdminBookingReviewRequestButton({
   sendingLabel,
   successMessage,
   fallbackError,
+  children,
 }: AdminBookingReviewRequestButtonProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -50,17 +52,20 @@ export function AdminBookingReviewRequestButton({
 
   return (
     <div className="space-y-2">
-      <button
-        type="button"
-        onClick={() => {
-          void resend();
-        }}
-        disabled={disabled || isSubmitting}
-        className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-      >
-        {isSubmitting ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-        {isSubmitting ? sendingLabel : label}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            void resend();
+          }}
+          disabled={disabled || isSubmitting}
+          className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+        >
+          {isSubmitting ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
+          {isSubmitting ? sendingLabel : label}
+        </button>
+        {children}
+      </div>
       {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
       {error ? <p className="text-sm text-rose-700">{error}</p> : null}
     </div>

@@ -1,5 +1,5 @@
 /**
- * Create 3 confirmed + paid test bookings for zakirmatloob149@gmail.com
+ * Create 2 confirmed + paid test bookings for zakirmatloob149@gmail.com
  *
  * Run: npx tsx scripts/create-test-bookings-zakir.ts
  */
@@ -13,52 +13,52 @@ import { insertBookingOccupancy } from "../src/lib/vehicle-unit-occupancy";
 const CUSTOMER_EMAIL = "zakirmatloob149@gmail.com";
 
 async function main() {
-  const vehicles = await prisma.vehicle.findMany({
+  const units = await prisma.vehicleUnit.findMany({
     where: {
       isActive: true,
-      units: { some: { isActive: true, status: "AVAILABLE" } },
+      status: "AVAILABLE",
+      vehicle: { isActive: true },
     },
     include: {
-      units: {
-        where: { isActive: true, status: "AVAILABLE" },
-        orderBy: { createdAt: "asc" },
-        take: 1,
+      vehicle: true,
+      occupancies: {
+        select: { pickupAt: true, returnAt: true },
       },
     },
     orderBy: { createdAt: "asc" },
-    take: 3,
   });
 
   const specs = [
     {
       label: "TEST-ZAKIR-001",
-      pickup: addDays(new Date(), 7),
+      pickup: addDays(new Date(), 30),
       days: 2,
       vehicleType: "Scooter" as const,
     },
     {
       label: "TEST-ZAKIR-002",
-      pickup: addDays(new Date(), 14),
+      pickup: addDays(new Date(), 40),
       days: 3,
       vehicleType: "Scooter" as const,
-    },
-    {
-      label: "TEST-ZAKIR-003",
-      pickup: addDays(new Date(), 21),
-      days: 1,
-      vehicleType: "Motorcycle" as const,
     },
   ];
 
   const created = [];
+  const usedUnitIds = new Set<string>();
 
-  for (let i = 0; i < specs.length; i++) {
-    const spec = specs[i]!;
-    const vehicle = vehicles[i] ?? vehicles[0] ?? null;
-    const unit = vehicle?.units[0] ?? null;
+  for (const spec of specs) {
     const pickup = new Date(spec.pickup);
     pickup.setUTCHours(10, 0, 0, 0);
     const returnAt = addDays(pickup, spec.days);
+    const unit =
+      units.find((candidate) => {
+        if (usedUnitIds.has(candidate.id)) return false;
+        return !candidate.occupancies.some(
+          (occupancy) => occupancy.pickupAt < returnAt && occupancy.returnAt > pickup,
+        );
+      }) ?? null;
+    const vehicle = unit?.vehicle ?? null;
+    if (unit) usedUnitIds.add(unit.id);
     const actualDurationHours = spec.days * 24;
     const dailyRate = vehicle ? Number(vehicle.baseDailyRate) : 30;
     const rentalCost = dailyRate * spec.days;
@@ -107,6 +107,10 @@ async function main() {
         subtotal: rentalCost,
         totalDueOnline: rentalCost,
         totalDueLater: depositAmount,
+        paymentMethod: "CARD",
+        paymentReceivedAmount: rentalCost,
+        termsAccepted: true,
+        termsAcceptedAt: new Date(),
       },
     });
 

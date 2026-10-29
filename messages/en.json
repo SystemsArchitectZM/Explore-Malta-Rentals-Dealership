@@ -1676,6 +1676,9 @@
           "sending": "Sending…",
           "resendSuccess": "Review request email sent.",
           "fallbackError": "Unable to send the review request. Please try again.",
+          "whatsapp": "Send on WhatsApp",
+          "whatsappUnavailable": "No valid WhatsApp number available",
+          "whatsappReviewUrlUnavailable": "The Google review link is not configured, so WhatsApp cannot be opened.",
           "statuses": {
             "PENDING": "Scheduled",
             "PROCESSING": "Sending",

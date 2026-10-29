@@ -15,6 +15,11 @@ import { isAuthorizedCronRequest } from "../src/lib/reviews/cron-auth";
 import { isValidCustomerEmail } from "../src/lib/reviews/customer-email";
 import { DEFAULT_GOOGLE_REVIEW_URL, resolveGoogleReviewUrl } from "../src/lib/reviews/google-review-url";
 import {
+  buildPostRentalWhatsAppLink,
+  buildPostRentalWhatsAppMessage,
+  normalizeWhatsAppPhone,
+} from "../src/lib/reviews/whatsapp-review-link";
+import {
   reviewRequestDelayMs,
   reviewRequestScheduledAt,
 } from "../src/lib/reviews/review-request-timing";
@@ -98,6 +103,74 @@ function runPureTests(): void {
   if (previous === undefined) delete process.env.GOOGLE_REVIEW_URL;
   else process.env.GOOGLE_REVIEW_URL = previous;
 
+  assert.equal(normalizeWhatsAppPhone("+356 9912 3456"), "35699123456");
+  assert.equal(normalizeWhatsAppPhone("+356-9912-3456"), "35699123456");
+  assert.equal(normalizeWhatsAppPhone("(356) 9912 3456"), "35699123456");
+  assert.equal(normalizeWhatsAppPhone("00356 9912 3456"), "35699123456");
+  assert.equal(normalizeWhatsAppPhone("  "), null);
+  assert.equal(normalizeWhatsAppPhone("123"), null);
+  assert.equal(normalizeWhatsAppPhone(null), null);
+
+  const withCredit = buildPostRentalWhatsAppLink({
+    customerPhone: "+356 9912 3456",
+    customerFullName: "Alex Guest",
+    includeLoyaltyCredit: true,
+    googleReviewUrlEnv: reviewUrl,
+  });
+  assert.equal(withCredit.ok, true);
+  if (withCredit.ok) {
+    const parsed = new URL(withCredit.url);
+    assert.equal(parsed.origin + parsed.pathname, "https://wa.me/35699123456");
+    const text = parsed.searchParams.get("text") ?? "";
+    assert.match(text, /Hi Alex,/);
+    assert.match(text, /Thank you for choosing Explore Malta Rentals/);
+    assert.match(text, /€5 credit available toward your next booking/);
+    assert.doesNotMatch(text, /review to receive|leave a review to/i);
+    assert.match(text, /shared your experience with us on Google/);
+    assert.match(text, new RegExp(reviewUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.doesNotMatch(text, /bookingReference|deposit|EMR-/i);
+    assert.match(withCredit.url, /text=/);
+    assert.match(withCredit.url, /%20/);
+    assert.match(withCredit.url, /%0A/);
+    assert.doesNotMatch(withCredit.url, / /);
+  }
+
+  const withoutCredit = buildPostRentalWhatsAppMessage({
+    customerFullName: "Alex Guest",
+    reviewUrl,
+    includeLoyaltyCredit: false,
+  });
+  assert.match(withoutCredit, /Hi Alex,/);
+  assert.match(withoutCredit, new RegExp(reviewUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.doesNotMatch(withoutCredit, /€5/);
+
+  const missingPhone = buildPostRentalWhatsAppLink({
+    customerPhone: "",
+    customerFullName: "Alex Guest",
+    includeLoyaltyCredit: false,
+    googleReviewUrlEnv: reviewUrl,
+  });
+  assert.deepEqual(missingPhone, { ok: false, reason: "invalid_phone" });
+
+  const badReviewUrl = buildPostRentalWhatsAppLink({
+    customerPhone: "+356 9912 3456",
+    customerFullName: "Alex Guest",
+    includeLoyaltyCredit: false,
+    googleReviewUrlEnv: "http://example.com/review",
+  });
+  assert.deepEqual(badReviewUrl, { ok: false, reason: "invalid_review_url" });
+
+  const fallbackLink = buildPostRentalWhatsAppLink({
+    customerPhone: "+356 9912 3456",
+    customerFullName: "Alex Guest",
+    includeLoyaltyCredit: false,
+    googleReviewUrlEnv: "",
+  });
+  assert.equal(fallbackLink.ok, true);
+  if (fallbackLink.ok) {
+    assert.match(decodeURIComponent(fallbackLink.url), new RegExp(DEFAULT_GOOGLE_REVIEW_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  logPass("WhatsApp click-to-chat link uses the booking phone, review URL, and loyalty credit");
   const confirmation = buildBookingConfirmationEmail({
     customerFullName: "Alex Guest",
     bookingReference: "EMR-CONFIRM",

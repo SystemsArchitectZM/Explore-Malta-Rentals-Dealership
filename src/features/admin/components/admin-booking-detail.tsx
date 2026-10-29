@@ -7,6 +7,7 @@ import { AdminBookingPriceBuildup } from "@/features/admin/components/admin-book
 import { AdminBookingReviewRequestButton } from "@/features/admin/components/admin-booking-review-request-button";
 import type { AdminBookingDetail } from "@/lib/admin/bookings/types";
 import { formatMaltaDate, formatMaltaDateTime } from "@/lib/format-malta-datetime";
+import { buildPostRentalWhatsAppLink } from "@/lib/reviews/whatsapp-review-link";
 
 type AdminBookingDetailViewProps = Readonly<{
   locale: string;
@@ -138,6 +139,11 @@ async function ReviewRequestSection({
   const review = booking.reviewRequest;
   const canSend = booking.status === "RETURNED" || booking.status === "COMPLETED";
   const actionLabel = review?.sentAt ? t("details.reviewRequest.resend") : t("details.reviewRequest.send");
+  const whatsapp = buildPostRentalWhatsAppLink({
+    customerPhone: booking.customerPhone,
+    customerFullName: booking.customerFullName,
+    includeLoyaltyCredit: booking.issuedLoyaltyCredit !== null,
+  });
 
   return (
     <DetailSection title={t("details.reviewRequest.title")}>
@@ -190,10 +196,47 @@ async function ReviewRequestSection({
             sendingLabel={t("details.reviewRequest.sending")}
             successMessage={t("details.reviewRequest.resendSuccess")}
             fallbackError={t("details.reviewRequest.fallbackError")}
-          />
+          >
+            <WhatsAppReviewLink
+              href={whatsapp.ok ? whatsapp.url : null}
+              label={t("details.reviewRequest.whatsapp")}
+            />
+          </AdminBookingReviewRequestButton>
+          {whatsapp.ok ? null : (
+            <p className="mt-2 text-sm text-slate-500">
+              {whatsapp.reason === "invalid_phone"
+                ? t("details.reviewRequest.whatsappUnavailable")
+                : t("details.reviewRequest.whatsappReviewUrlUnavailable")}
+            </p>
+          )}
         </div>
       ) : null}
     </DetailSection>
+  );
+}
+
+function WhatsAppReviewLink({
+  href,
+  label,
+}: Readonly<{
+  href: string | null;
+  label: string;
+}>) {
+  const className =
+    "inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60";
+
+  if (!href) {
+    return (
+      <button type="button" disabled className={className}>
+        {label}
+      </button>
+    );
+  }
+
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className={className}>
+      {label}
+    </a>
   );
 }
 
