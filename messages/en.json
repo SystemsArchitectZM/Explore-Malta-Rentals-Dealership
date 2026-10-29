@@ -1597,6 +1597,7 @@
         }
       },
       "table": {
+        "no": "No.",
         "reference": "Reference",
         "customer": "Customer",
         "vehicle": "Vehicle",
@@ -1620,7 +1621,9 @@
         "showing": "Showing {from}–{to} of {total}",
         "pageOf": "Page {page} of {totalPages}",
         "previous": "Previous",
-        "next": "Next"
+        "next": "Next",
+        "rowsPerPage": "Rows per page",
+        "goToPage": "Go to page {page}"
       },
       "statusDialog": {
         "confirmTitle": "Update booking status?",

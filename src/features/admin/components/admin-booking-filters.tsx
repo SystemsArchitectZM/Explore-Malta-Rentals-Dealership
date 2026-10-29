@@ -44,6 +44,9 @@ export function AdminBookingFilters({ locale, vehicles, partners }: AdminBooking
       if (value) params.set(key, value);
     }
 
+    const pageSize = searchParams.get("pageSize");
+    if (pageSize) params.set("pageSize", pageSize);
+
     startTransition(() => {
       const query = params.toString();
       router.push(`/${locale}/admin/bookings${query ? `?${query}` : ""}`);

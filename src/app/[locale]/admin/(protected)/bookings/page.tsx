@@ -23,6 +23,7 @@ type AdminBookingsPageProps = Readonly<{
     pickupTo?: string;
     returnDate?: string;
     page?: string;
+    pageSize?: string;
   }>;
 }>;
 
@@ -30,10 +31,18 @@ function FiltersFallback() {
   return <div className="h-28 animate-pulse rounded-2xl bg-white/70" aria-hidden />;
 }
 
+const ALLOWED_PAGE_SIZES = new Set([10, 25, 50, 100]);
+
 function parseOptionalInt(value: string | undefined): number | undefined {
   if (!value) return undefined;
   const parsed = Number(value);
   return Number.isInteger(parsed) ? parsed : undefined;
+}
+
+function parsePageSize(value: string | undefined): number | undefined {
+  const parsed = parseOptionalInt(value);
+  if (parsed === undefined || !ALLOWED_PAGE_SIZES.has(parsed)) return undefined;
+  return parsed;
 }
 
 function parseBookingStatus(value: string | undefined): BookingStatus | undefined {
@@ -56,6 +65,8 @@ export default async function AdminBookingsPage({ params, searchParams }: AdminB
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "Admin.bookings" });
 
+  const pageSize = parsePageSize(query.pageSize);
+
   const filters = {
     search: query.search,
     status: parseBookingStatus(query.status),
@@ -68,6 +79,7 @@ export default async function AdminBookingsPage({ params, searchParams }: AdminB
     pickupTo: query.pickupTo,
     returnDate: query.returnDate,
     page: parseOptionalInt(query.page) ?? 1,
+    pageSize,
   };
 
   const [result, vehicles, partners] = await Promise.all([
@@ -88,6 +100,7 @@ export default async function AdminBookingsPage({ params, searchParams }: AdminB
     pickupTo: query.pickupTo,
     returnDate: query.returnDate,
     page: query.page,
+    pageSize: pageSize ? String(pageSize) : undefined,
   };
 
   return (

@@ -5,6 +5,7 @@ import { getTranslations } from "next-intl/server";
 
 import { AdminBookingPriceBuildup } from "@/features/admin/components/admin-booking-price-buildup";
 import { AdminBookingReviewRequestButton } from "@/features/admin/components/admin-booking-review-request-button";
+import { buildAdminBookingsListUrl } from "@/features/admin/lib/admin-bookings-list-url";
 import type { AdminBookingDetail } from "@/lib/admin/bookings/types";
 import { formatMaltaDate, formatMaltaDateTime } from "@/lib/format-malta-datetime";
 import { buildPostRentalWhatsAppLink } from "@/lib/reviews/whatsapp-review-link";
@@ -286,16 +287,18 @@ function BookingStatusIcon({ status }: Readonly<{ status: string }>) {
 export async function AdminBookingDetailHeader({
   locale,
   booking,
+  listSearchParams = {},
 }: Readonly<{
   locale: string;
   booking: AdminBookingDetail;
+  listSearchParams?: Record<string, string | undefined>;
 }>) {
   const t = await getTranslations({ locale, namespace: "Admin.bookings" });
 
   return (
     <section className="space-y-4">
       <a
-        href={`/${locale}/admin/bookings`}
+        href={buildAdminBookingsListUrl(locale, listSearchParams)}
         className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 transition hover:text-[#3a7ca5]"
       >
         <ArrowLeft className="size-4" aria-hidden />
