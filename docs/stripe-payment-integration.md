@@ -231,10 +231,15 @@ Idempotency store — every Stripe webhook received is recorded here.
 |--------|------|-------------|
 | `stripeEventId` | String (unique) | Stripe event ID (`evt_xxx`) — prevents duplicate processing |
 | `eventType` | String | e.g. `checkout.session.completed` |
-| `processed` | Boolean | Set to `true` once handled successfully |
+| `processed` | Boolean | Set to `true` once handled successfully (written together with `status = PROCESSED`) |
 | `processedAt` | DateTime | When it was processed |
 | `payload` | JSON | Full Stripe event payload (for debugging/replay) |
-| `error` | String | Error message if processing failed |
+| `error` | String | Truncated error text of the last failure (history) |
+| `status` | Enum | `RECEIVED`, `PROCESSING`, `PROCESSED`, `RETRYABLE_FAILED`, `DEAD_LETTER` |
+| `claimToken` / `claimExpiresAt` | String / DateTime | Current lease owner and expiry (database clock); null unless `PROCESSING` |
+| `claimGeneration` | Int | Fencing value, incremented on every claim |
+| `attemptCount` | Int | Claims acquired (handler attempts started) |
+| `lastErrorCode` / `lastAttemptAt` | String / DateTime | Stable failure code and last attempt time |
 
 ### PaymentAuditLog
 
@@ -288,7 +293,7 @@ Called by the success page. Fetches the session from Stripe directly (not just f
 Verifies the Stripe signature using `HMAC-SHA256`. Throws if invalid.
 
 **`processWebhookEvent(event)`**  
-Idempotent — checks `WebhookEvent.stripeEventId` before doing any work. Handles 9 event types (see section 9).
+Idempotent — claims `WebhookEvent.stripeEventId` with a lease-based atomic claim before doing any work and returns a typed outcome (`processed`, `ignored`, `already_processed`, `in_flight`, `retryable_failure`, `permanent_failure`). See [stripe-webhook-reliability.md](./stripe-webhook-reliability.md). Handles the event types in section 9.
 
 ### `refund-service.ts`
 
@@ -333,8 +338,8 @@ Receives all Stripe webhook events. **Must receive the raw body** for signature 
 stripe listen --forward-to localhost:3000/api/stripe/webhook
 ```
 
-Returns `200` even on non-critical errors (prevents Stripe from retrying forever).  
-Returns `500` only for transient infrastructure errors (DB down) so Stripe will retry.
+Returns `200` for processed, ignored, already-processed and permanently dead-lettered events (a terminal decision was durably recorded).  
+Returns `503` (with `Retry-After`) for an in-flight duplicate, and `500` for any incomplete or retryable processing, so Stripe will retry. Stuck events are additionally recoverable through the ADMIN recovery endpoint. See [stripe-webhook-reliability.md](./stripe-webhook-reliability.md).
 
 ---
 
@@ -423,7 +428,7 @@ A **server-rendered** page that verifies the Stripe session.
 | `refund.created` | Create/upsert `StripeRefund` record |
 | `refund.updated` | Update `StripeRefund.status` |
 
-**Idempotency guarantee:** Before processing any event, the handler checks `WebhookEvent.stripeEventId`. If found and `processed = true`, the event is silently skipped.
+**Idempotency guarantee:** Each event id is claimed through an atomic, lease-based conditional update before any handler runs; processed events are skipped without invoking handlers, and a stale worker cannot finalize a newer worker's claim. Delivery is at-least-once with idempotent handlers (not exactly-once across PostgreSQL and Stripe). See [stripe-webhook-reliability.md](./stripe-webhook-reliability.md) for the state machine, HTTP policy and recovery behaviour.
 
 ---
 

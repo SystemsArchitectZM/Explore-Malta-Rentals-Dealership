@@ -370,7 +370,6 @@ export function AdminBookingLifecycleActions({
   });
 
   const [cancelForm, setCancelForm] = useState({
-    refundPayment: false,
     depositOutcome: "UNCHANGED" as const,
     depositRefundAmount: booking.depositAmount,
     depositDeductionAmount: 0,
@@ -517,7 +516,6 @@ export function AdminBookingLifecycleActions({
       vehicleName: booking.vehicleName,
       pickupDateTime: booking.pickupDateTime,
       returnDateTime: booking.returnDateTime,
-      refundPayment: cancelForm.refundPayment,
     });
     setCancelForm((current) => ({
       ...current,
@@ -1095,20 +1093,9 @@ export function AdminBookingLifecycleActions({
                 </p>
                 <div className="mt-4 space-y-3">
                   {booking.paymentStatus === "PAID" ? (
-                    <label className="flex items-center gap-2 text-sm text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={cancelForm.refundPayment}
-                        onChange={(event) =>
-                          setCancelForm((current) => ({
-                            ...current,
-                            refundPayment: event.target.checked,
-                            emailCustomized: false,
-                          }))
-                        }
-                      />
-                      {t("cancelDialog.refundPayment")}
-                    </label>
+                    <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+                      {t("cancelDialog.paidPaymentNotice")}
+                    </p>
                   ) : null}
                   {booking.securityDepositStatus === "COLLECTED" ? (
                     <label>
@@ -1164,6 +1151,9 @@ export function AdminBookingLifecycleActions({
                 <h4 className="text-lg font-bold text-slate-950">{t("cancelDialog.emailTitle")}</h4>
                 <p className="mt-1 text-sm text-slate-600">
                   {t("cancelDialog.emailDescription", { email: booking.customerEmail })}
+                </p>
+                <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+                  {t("cancelDialog.emailRefundWarning")}
                 </p>
                 <div className="mt-4 space-y-3">
                   <label>
@@ -1226,7 +1216,6 @@ export function AdminBookingLifecycleActions({
                     }
                     onClick={() =>
                       submitAction("cancel", {
-                        refundPayment: cancelForm.refundPayment,
                         depositOutcome: cancelForm.depositOutcome,
                         depositRefundAmount: cancelForm.depositRefundAmount,
                         depositDeductionAmount: cancelForm.depositDeductionAmount,

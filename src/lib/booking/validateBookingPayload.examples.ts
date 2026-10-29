@@ -52,7 +52,7 @@ const BASE_VALID_50CC_PAYLOAD: BookingSubmissionInput = {
     willPresentIdAtPickup: false,
   },
   deposit: {
-    depositMethod: "IN_PERSON",
+    depositMethod: "ONLINE",
   },
   consent: {
     termsAccepted: true,

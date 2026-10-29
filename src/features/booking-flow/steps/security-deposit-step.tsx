@@ -12,8 +12,8 @@ export function SecurityDepositStep() {
   const { state, updateSection } = useBookingFlow();
 
   useEffect(() => {
-    if (state.deposit.depositMethod !== "in_person") {
-      updateSection("deposit", { depositMethod: "in_person" });
+    if (state.deposit.depositMethod !== "online") {
+      updateSection("deposit", { depositMethod: "online" });
     }
   }, [state.deposit.depositMethod, updateSection]);
 
@@ -34,7 +34,7 @@ export function SecurityDepositStep() {
         </div>
       </div>
       <div className="surface-card p-4 text-sm leading-relaxed text-[var(--text-secondary)] sm:p-5">
-        <p>{t("payInPerson")}</p>
+        <p>{t("payOnline")}</p>
       </div>
     </StepShell>
   );

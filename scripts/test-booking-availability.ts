@@ -150,7 +150,8 @@ function bookingPayload(input: {
       willPresentLicenseAtPickup: false,
       willPresentIdAtPickup: false,
     },
-    deposit: { depositMethod: "IN_PERSON" },
+    deposit: { depositMethod: "ONLINE" },
+    payment: { mode: "STRIPE", proofPath: null },
     consent: { termsAccepted: true, termsAcceptedAt: new Date().toISOString() },
   };
 }

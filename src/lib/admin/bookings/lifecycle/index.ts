@@ -13,7 +13,11 @@ export type {
   RestoreCancelledBookingInput,
 } from "@/lib/admin/bookings/lifecycle/booking-lifecycle-schema";
 export { cancelBooking } from "@/lib/admin/bookings/lifecycle/cancelBooking";
-export type { CancelBookingResult } from "@/lib/admin/bookings/lifecycle/cancelBooking";
+export type {
+  CancelBookingDeps,
+  CancelBookingResult,
+} from "@/lib/admin/bookings/lifecycle/cancelBooking";
+export { resolvePaymentStatusOnCancel } from "@/lib/admin/bookings/lifecycle/resolve-payment-status-on-cancel";
 export { completeBooking } from "@/lib/admin/bookings/lifecycle/completeBooking";
 export type { CompleteBookingResult } from "@/lib/admin/bookings/lifecycle/completeBooking";
 export { handOverVehicle } from "@/lib/admin/bookings/lifecycle/handOverVehicle";

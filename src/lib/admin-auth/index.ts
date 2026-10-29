@@ -19,6 +19,7 @@ export { AdminForbiddenError, AdminUnauthorizedError } from "@/lib/admin-auth/er
 export { getAdminSession } from "@/lib/admin-auth/get-admin-session";
 export { hashAdminPassword, verifyAdminPassword } from "@/lib/admin-auth/password";
 export { requireAdminApi } from "@/lib/admin-auth/require-admin-api";
+export { requireAdminApiRole } from "@/lib/admin-auth/require-admin-api-role";
 export { redirectIfAdminAuthenticated, requireAdminPage } from "@/lib/admin-auth/require-admin-page";
 export {
   authenticateAdminCredentials,

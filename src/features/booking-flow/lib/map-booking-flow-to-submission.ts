@@ -69,12 +69,8 @@ export function mapBookingFlowStateToSubmission(
   const helmetRequired = isHelmetRequiredForApiVehicle(apiVehicle);
   const pickupOption = state.delivery.pickupOption === "office" ? "OFFICE" : "DELIVERY";
   const dropoffOption = state.delivery.dropoffOption === "office" ? "OFFICE" : "DROPOFF";
-  const depositMethod =
-    state.payment.mode === "already_paid"
-      ? "IN_PERSON"
-      : state.deposit.depositMethod === "online"
-        ? "ONLINE"
-        : "IN_PERSON";
+  // Standard Stripe flow is ONLINE-only. ALREADY_PAID keeps offline deposit semantics.
+  const depositMethod = state.payment.mode === "already_paid" ? "IN_PERSON" : "ONLINE";
   const additionalEnabled = state.addons.additionalDriver === true;
 
   const licensePath = pathOrNull(state.customer.driverLicenseUpload);

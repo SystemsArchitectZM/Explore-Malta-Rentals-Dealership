@@ -51,6 +51,10 @@ export const completeBookingSchema = z
   });
 
 export const cancelBookingSchema = z.object({
+  /**
+   * Legacy flag. Accepted for API compatibility but ignored for payment status.
+   * Cancellation never marks a Stripe rental payment as REFUNDED.
+   */
   refundPayment: z.boolean().default(false),
   depositOutcome: z.enum(["UNCHANGED", "REFUNDED", "DEDUCTED"]).default("UNCHANGED"),
   depositRefundAmount: z.coerce.number().min(0).optional(),

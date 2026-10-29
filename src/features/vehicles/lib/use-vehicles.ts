@@ -18,8 +18,28 @@ import {
 const MAX_RETRIES = 2;
 const RETRY_BASE_MS = 1_500; // 1.5 s → 3 s
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function isAbortError(error: unknown): boolean {
+  if (error == null || typeof error !== "object") return false;
+  const name = "name" in error ? String(error.name) : "";
+  if (name === "AbortError") return true;
+  const message = "message" in error ? String(error.message) : "";
+  // undici / newer fetch: abort() with no reason → "signal is aborted without reason"
+  return /aborted/i.test(message);
+}
+
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const id = window.setTimeout(resolve, ms);
+    const onAbort = () => {
+      window.clearTimeout(id);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 async function withRetry<T>(
@@ -33,10 +53,12 @@ async function withRetry<T>(
     try {
       return await fn();
     } catch (err) {
-      if (signal.aborted) throw err; // propagate abort immediately
+      if (signal.aborted || isAbortError(err)) {
+        throw err instanceof Error ? err : new DOMException("Aborted", "AbortError");
+      }
       lastError = err;
       if (attempt < retries) {
-        await sleep(RETRY_BASE_MS * Math.pow(2, attempt));
+        await sleep(RETRY_BASE_MS * Math.pow(2, attempt), signal);
       }
     }
   }
@@ -67,29 +89,31 @@ export function useVehicles(options: UseVehiclesOptions = {}): UseVehiclesResult
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const pickupDate = rentalWindow?.pickupDate?.trim() ?? "";
+  const pickupTime = rentalWindow?.pickupTime?.trim() ?? "";
+  const returnDate = rentalWindow?.returnDate?.trim() ?? "";
+  const returnTime = rentalWindow?.returnTime?.trim() ?? "";
+  const sessionKey = rentalWindow?.sessionKey?.trim() ?? "";
+
   useEffect(() => {
     if (!enabled) {
       return;
     }
 
+    let cancelled = false;
     const controller = new AbortController();
     const loadVehicles = async () => {
       setIsLoading(true);
       setError(null);
       try {
         const windowPayload =
-          rentalWindow &&
-          rentalWindow.pickupDate.trim() &&
-          rentalWindow.pickupTime.trim() &&
-          rentalWindow.returnDate.trim() &&
-          rentalWindow.returnTime.trim()
+          pickupDate && pickupTime && returnDate && returnTime
             ? ({
-                pickupDate: rentalWindow.pickupDate.trim(),
-                pickupTime: rentalWindow.pickupTime.trim(),
-                returnDate: rentalWindow.returnDate.trim(),
-                returnTime: rentalWindow.returnTime.trim(),
-                sessionKey:
-                  rentalWindow.sessionKey?.trim() || readReservationHoldSessionKeyFromStorage(),
+                pickupDate,
+                pickupTime,
+                returnDate,
+                returnTime,
+                sessionKey: sessionKey || readReservationHoldSessionKeyFromStorage(),
               } satisfies FetchVehiclesRentalWindow)
             : null;
 
@@ -97,38 +121,34 @@ export function useVehicles(options: UseVehiclesOptions = {}): UseVehiclesResult
           () => fetchVehicles(controller.signal, windowPayload),
           controller.signal,
         );
-        if (!controller.signal.aborted) {
-          setVehicles(data);
-        }
+        if (cancelled) return;
+        setVehicles(data);
       } catch (caught) {
-        if (controller.signal.aborted) return;
+        if (cancelled || isAbortError(caught)) return;
         if (process.env.NODE_ENV !== "production") {
           console.error("[useVehicles] Failed to fetch vehicles", caught);
         }
         setError("Unable to load vehicles right now. Please try again.");
       } finally {
-        if (!controller.signal.aborted) {
+        if (!cancelled) {
           setIsLoading(false);
         }
       }
     };
-    // Attach a no-op rejection handler so that the AbortError emitted when the
-    // effect cleanup fires does not surface as an unhandled promise rejection in
-    // React StrictMode / during fast navigation.
-    // Guard covers both DOMException("AbortError") and the plain Error("signal is
-    // aborted without reason") thrown by newer fetch/Node implementations.
-    loadVehicles().catch((e: unknown) => {
-      const isAbort =
-        (e instanceof DOMException && e.name === "AbortError") ||
-        (e instanceof Error && e.name === "AbortError");
-      if (isAbort) return;
+    // Swallow abort rejections from StrictMode remounts / fast navigation so they
+    // never surface in the Next.js runtime error overlay.
+    void loadVehicles().catch((e: unknown) => {
+      if (cancelled || isAbortError(e)) return;
       if (process.env.NODE_ENV !== "production") {
         console.error("[useVehicles] Unhandled error outside async body", e);
       }
     });
 
-    return () => controller.abort();
-  }, [enabled, rentalWindow]);
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [enabled, pickupDate, pickupTime, returnDate, returnTime, sessionKey]);
 
   if (!enabled) {
     return { vehicles: [], isLoading: false, error: null };
@@ -149,6 +169,7 @@ export function useVehicle(slug: string): UseVehicleResult {
       return;
     }
 
+    let cancelled = false;
     const controller = new AbortController();
     const loadVehicle = async () => {
       setIsLoading(true);
@@ -158,29 +179,31 @@ export function useVehicle(slug: string): UseVehicleResult {
           () => fetchVehicleBySlug(normalizedSlug, controller.signal),
           controller.signal,
         );
-        if (!controller.signal.aborted) {
-          setVehicle(data);
-        }
+        if (cancelled) return;
+        setVehicle(data);
       } catch (caught) {
-        if (controller.signal.aborted) return;
+        if (cancelled || isAbortError(caught)) return;
         if (process.env.NODE_ENV !== "production") {
           console.error("[useVehicle] Failed to fetch vehicle", { slug: normalizedSlug, error: caught });
         }
         setError("Unable to load this vehicle right now. Please try again.");
       } finally {
-        if (!controller.signal.aborted) {
+        if (!cancelled) {
           setIsLoading(false);
         }
       }
     };
-    loadVehicle().catch((e: unknown) => {
-      if (e instanceof DOMException && e.name === "AbortError") return;
+    void loadVehicle().catch((e: unknown) => {
+      if (cancelled || isAbortError(e)) return;
       if (process.env.NODE_ENV !== "production") {
         console.error("[useVehicle] Unhandled error outside async body", e);
       }
     });
 
-    return () => controller.abort();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, [normalizedSlug, shouldFetch]);
 
   if (!shouldFetch) {

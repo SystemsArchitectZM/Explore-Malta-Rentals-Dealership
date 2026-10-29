@@ -1,11 +1,25 @@
 import { NextResponse } from "next/server";
 import { constructWebhookEvent, processWebhookEvent } from "@/lib/stripe/webhook-service";
+import { WebhookConfigurationError } from "@/lib/stripe/webhook-errors";
+import { mapWebhookResultToHttp } from "@/lib/stripe/webhook-http-policy";
 
 /**
  * POST /api/stripe/webhook
  *
  * Receives and processes Stripe webhook events.
  * Must consume the raw body bytes for signature verification — do NOT parse as JSON first.
+ *
+ * HTTP policy (Stripe retries any non-2xx):
+ *   400  missing/invalid signature or unreadable body — rejected before any event
+ *        processing; no WebhookEvent row is created for unverified requests.
+ *   500  server misconfiguration (signing secret absent) or retryable incomplete
+ *        processing.
+ *   503  in-flight duplicate (another worker holds an unexpired lease; this delivery
+ *        ran no handler). Retryable, with Retry-After. Does not alter the owner's lease.
+ *   200  processed / ignored / already processed / permanently dead-lettered
+ *        (terminal decision durably recorded).
+ * The 2xx/5xx decision for processed events comes from the typed outcome in
+ * webhook-http-policy.ts, never from error-message text.
  */
 export async function POST(request: Request) {
   const signature = request.headers.get("stripe-signature");
@@ -27,29 +41,43 @@ export async function POST(request: Request) {
   try {
     event = constructWebhookEvent(rawBody, signature);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Signature verification failed";
-    console.warn("[webhook] Invalid signature", { message });
-    return NextResponse.json({ error: message }, { status: 400 });
-  }
-
-  const result = await processWebhookEvent(event);
-
-  if (!result.ok) {
-    console.error("[webhook] Event processing failed", { eventId: event.id, eventType: event.type, error: result.error });
-    // Return 200 to prevent Stripe from retrying unrecoverable errors.
-    // For transient errors (DB down) we return 500 so Stripe retries.
-    const isTransientError =
-      result.error.includes("database") ||
-      result.error.includes("ECONNREFUSED") ||
-      result.error.includes("timeout");
-
-    if (isTransientError) {
-      return NextResponse.json({ error: result.error }, { status: 500 });
+    if (error instanceof WebhookConfigurationError) {
+      // Server fault: not a signature problem, and retryable once configured.
+      console.error("[webhook] Webhook endpoint is not configured");
+      return NextResponse.json({ error: "Webhook endpoint is not configured" }, { status: 500 });
     }
-
-    // Log the error but acknowledge receipt to stop retries
-    return NextResponse.json({ received: true, error: result.error }, { status: 200 });
+    console.warn("[webhook] Invalid signature or payload");
+    return NextResponse.json({ error: "Invalid webhook signature" }, { status: 400 });
   }
 
-  return NextResponse.json({ received: true, action: result.action }, { status: 200 });
+  let result;
+  try {
+    result = await processWebhookEvent(event);
+  } catch (error) {
+    // processWebhookEvent is designed not to throw; if it does, processing is
+    // incomplete and must be retried rather than acknowledged.
+    console.error("[webhook] Unexpected failure outside typed processing", {
+      eventId: event.id,
+      eventType: event.type,
+      error,
+    });
+    return NextResponse.json(
+      { received: false, outcome: "retryable_failure", error: "WEBHOOK_PROCESSING_UNAVAILABLE" },
+      { status: 500 },
+    );
+  }
+
+  const { status, body, headers } = mapWebhookResultToHttp(result);
+
+  // in_flight is a normal concurrency signal (503 by policy), not a processing failure;
+  // it is already logged as webhook.duplicate_in_flight_skipped by the orchestrator.
+  if (status >= 500 && result.outcome !== "in_flight") {
+    console.error("[webhook] Event processing incomplete", {
+      eventId: event.id,
+      eventType: event.type,
+      outcome: result.outcome,
+    });
+  }
+
+  return NextResponse.json(body, { status, ...(headers ? { headers } : {}) });
 }

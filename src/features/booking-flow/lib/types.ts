@@ -151,7 +151,7 @@ export const INITIAL_BOOKING_FLOW_STATE: BookingFlowState = {
     officeIdConfirmed: false,
   },
   deposit: {
-    depositMethod: "in_person",
+    depositMethod: "online",
   },
   payment: {
     mode: "stripe",

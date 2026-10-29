@@ -6,6 +6,7 @@ import {
   CalendarCheck,
   Car,
   ChevronRight,
+  CreditCard,
   LayoutDashboard,
   LogOut,
   Percent,
@@ -27,6 +28,7 @@ type AdminNavItem = {
     | "hotels"
     | "hotelCodes"
     | "payments"
+    | "stripePayments"
     | "reports";
   icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   disabled?: boolean;
@@ -42,6 +44,7 @@ const MANAGEMENT_NAV: AdminNavItem[] = [
   { href: "/hotels", labelKey: "hotels", icon: Building2 },
   { href: "/hotel-codes", labelKey: "hotelCodes", icon: Percent },
   { href: "/hotel-payments", labelKey: "payments", icon: Wallet },
+  { href: "/stripe-payments", labelKey: "stripePayments", icon: CreditCard },
   { href: "/reports", labelKey: "reports", icon: BarChart3 },
 ];
 

@@ -1123,6 +1123,81 @@
         }
       }
     },
+    "nav": {
+      "stripePayments": "Pagamentos Stripe"
+    },
+    "stripePayments": {
+      "header": "Pagamentos Stripe",
+      "pageTitle": "Pagamentos Stripe de clientes",
+      "pageDescription": "Reveja os pagamentos de reservas online e emita reembolsos com propósito (aluguer ou depósito). Cancelamento e conclusão não reembolsam Stripe automaticamente — use uma ação explícita aqui.",
+      "loading": "A carregar pagamentos…",
+      "loadError": "Não foi possível carregar os pagamentos Stripe.",
+      "empty": "Nenhum pagamento Stripe encontrado.",
+      "searchPlaceholder": "Pesquisar referência ou cliente",
+      "refresh": "Atualizar",
+      "columns": {
+        "booking": "Booking",
+        "customer": "Customer",
+        "amount": "Amount",
+        "status": "Stripe status",
+        "refund": "Refunded",
+        "actions": "Actions"
+      },
+      "rentalAvailable": "Rental available: €{amount}",
+      "depositAvailable": "Deposit available: €{amount}",
+      "needsReconciliation": "Bloqueado: reembolsos históricos precisam de reconciliação ADMIN antes de reembolsos por propósito.",
+      "refundAction": "Reembolsar",
+      "reconcileAction": "Reconciliar",
+      "dialog": {
+        "title": "Issue Stripe refund",
+        "purpose": "Refund purpose",
+        "purposeRental": "Rental",
+        "purposeDeposit": "Security deposit",
+        "amount": "Amount (EUR, optional — omit for remaining purpose balance)",
+        "reason": "Reason",
+        "notes": "Notes (optional)",
+        "clientRequestId": "Client request ID (stable for retries)",
+        "newAttempt": "Start new attempt",
+        "submit": "Submit refund",
+        "submitting": "Submitting…",
+        "cancel": "Cancel",
+        "pendingHint": "Stripe has not confirmed success yet. Retry with the same client request ID.",
+        "blockedHint": "This payment is blocked until unmatched historical refunds are reconciled.",
+        "prePickupHint": "Security deposit refunds normally require COMPLETED bookings. Pre-pickup cancellations from CONFIRMED are an explicit ADMIN exception validated on the server.",
+        "success": "Refund succeeded.",
+        "pending": "Refund reserved and pending Stripe confirmation.",
+        "error": "Refund could not be completed.",
+        "depositRequiresCompleted": "Security deposit refund is disabled here until the booking status is COMPLETED."
+      },
+      "reconcile": {
+        "title": "Reconcile historical refunds",
+        "evidence": "Evidence / audit note (required)",
+        "purpose": "Purpose for {refundId}",
+        "purposePlaceholder": "Select purpose…",
+        "purposeRequired": "Choose RENTAL or SECURITY_DEPOSIT for every unmatched refund. Purpose is never inferred.",
+        "purposeHint": "Each unmatched Stripe refund ID needs an explicit purpose choice. Booking status is not used to guess purpose.",
+        "submit": "Save allocations",
+        "submitting": "Saving…",
+        "cancel": "Cancel",
+        "success": "Historical refunds reconciled.",
+        "error": "Reconciliation failed."
+      },
+      "reasons": {
+        "requested_by_customer": "Requested by customer",
+        "duplicate": "Duplicate",
+        "fraudulent": "Fraudulent"
+      },
+      "rentalAllocated": "Rental allocation: €{amount}",
+      "depositAllocated": "Deposit allocation: €{amount}",
+      "availabilityUnavailable": "Refund capacity unavailable until payment accounting is repaired.",
+      "staffReadOnlyHint": "STAFF can view Stripe payments. Refund and reconciliation actions require an ADMIN account.",
+      "errors": {
+        "ineligible": "This payment is not eligible for a new Stripe refund.",
+        "no_capacity": "No remaining refundable amount for the selected purpose.",
+        "needs_reconciliation": "Historical refunds must be reconciled before issuing a new refund.",
+        "request_conflict": "This client request ID was already used with different refund parameters."
+      }
+    },
     "notifications": {
       "loading": "Loading notifications…",
       "empty": "No notifications yet.",

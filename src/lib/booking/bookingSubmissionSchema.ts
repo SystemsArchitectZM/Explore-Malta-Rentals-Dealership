@@ -341,6 +341,16 @@ export const bookingSubmissionSchema = z
       });
     }
 
+    // Standard Stripe bookings must collect the security deposit online.
+    // ALREADY_PAID keeps offline / IN_PERSON deposit semantics.
+    if (payload.payment.mode === "STRIPE" && payload.deposit.depositMethod !== "ONLINE") {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["deposit", "depositMethod"],
+        message: "Security deposit must be paid online for standard Stripe bookings",
+      });
+    }
+
     const pickupDateTime = combineDateAndTime(payload.rental.pickupDate, payload.rental.pickupTime);
     const returnDateTime = combineDateAndTime(payload.rental.returnDate, payload.rental.returnTime);
 

@@ -42,6 +42,14 @@ const BOOKING_REFERENCE_PREFIX = "EMR";
 const BOOKING_REFERENCE_RETRY_LIMIT = 5;
 /** Heartbeat updates the same hold row outside this tx; Serializable + Turso/SQLite often returns P2034. */
 const TRANSACTION_WRITE_CONFLICT_RETRY_LIMIT = 10;
+/**
+ * Neon serverless can take several seconds to wake; booking finalize does many
+ * Serializable queries (hold validate, availability, unit assign, occupancy).
+ * 30s was timing out in practice (P2028) before Stripe checkout could start.
+ */
+const BOOKING_TRANSACTION_TIMEOUT_MS = 60_000;
+const TRANSACTION_TIMEOUT_RETRY_LIMIT = 3;
+const TRANSACTION_TIMEOUT_RETRY_DELAYS_MS = [500, 1500, 3000];
 
 type PricingComputation = {
   breakdown: BookingPriceBreakdown;
@@ -269,6 +277,10 @@ function isIdempotencyKeyUniqueConstraintError(error: unknown): boolean {
 
 function isTransactionWriteConflictError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
+}
+
+function isTransactionTimeoutError(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2028";
 }
 
 function transactionConflictBackoffMs(attemptIndex: number): number {
@@ -820,7 +832,7 @@ async function createBookingWithUniqueReference(
           },
           {
             isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-            timeout: 30_000,
+            timeout: BOOKING_TRANSACTION_TIMEOUT_MS,
           },
         );
       } catch (error) {
@@ -852,6 +864,24 @@ async function createBookingWithUniqueReference(
           }
           await new Promise((resolve) => {
             setTimeout(resolve, transactionConflictBackoffMs(conflictAttempt));
+          });
+          continue;
+        }
+        if (isTransactionTimeoutError(error)) {
+          if (conflictAttempt + 1 >= TRANSACTION_TIMEOUT_RETRY_LIMIT) {
+            throw error;
+          }
+          const delay =
+            TRANSACTION_TIMEOUT_RETRY_DELAYS_MS[conflictAttempt] ??
+            TRANSACTION_TIMEOUT_RETRY_DELAYS_MS[TRANSACTION_TIMEOUT_RETRY_DELAYS_MS.length - 1]!;
+          if (process.env.NODE_ENV !== "production") {
+            console.warn(
+              `[submitBooking] Transaction timed out (P2028); retrying in ${delay}ms`,
+              { attempt: conflictAttempt + 1 },
+            );
+          }
+          await new Promise((resolve) => {
+            setTimeout(resolve, delay);
           });
           continue;
         }

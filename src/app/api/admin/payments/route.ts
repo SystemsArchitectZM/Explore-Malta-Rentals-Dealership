@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import type { Prisma, StripePaymentStatus } from "@/generated/prisma/index";
 import { requireAdminApi, AdminUnauthorizedError } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
+import { buildAdminPaymentListRefundMetrics } from "@/features/admin/lib/stripe-payment-list-availability";
+import type { LinkedRefundRequest, PaymentRefundCounters } from "@/lib/stripe/refund-accounting";
 
 /**
  * GET /api/admin/payments
- * Returns paginated list of Stripe payments with booking info.
+ * Returns paginated list of Stripe payments with booking info and refund capacity.
  * Query: ?page=1&limit=20&status=SUCCEEDED&search=EMR-xxx
  */
 export async function GET(request: Request) {
@@ -49,10 +51,11 @@ export async function GET(request: Request) {
               vehicleNameSnapshot: true,
               status: true,
               paymentStatus: true,
+              depositMethod: true,
             },
           },
           StripeRefund: {
-            select: { amountCents: true, status: true, createdAt: true },
+            select: { stripeRefundId: true, amountCents: true, status: true, createdAt: true },
             orderBy: { createdAt: "desc" },
           },
         },
@@ -60,34 +63,110 @@ export async function GET(request: Request) {
       prisma.stripePayment.count({ where }),
     ]);
 
+    // Stage 1B client may lag generate — access request model via cast.
+    const rr = prisma as typeof prisma & {
+      stripeRefundRequest: {
+        findMany: (args: unknown) => Promise<
+          Array<{
+            stripePaymentId: string;
+            stripeRefundId: string | null;
+            purpose: string;
+            status: string;
+            amountCents: number;
+          }>
+        >;
+      };
+    };
+
+    const paymentIds = payments.map((p) => p.id);
+    let requests: Array<{
+      stripePaymentId: string;
+      stripeRefundId: string | null;
+      purpose: string;
+      status: string;
+      amountCents: number;
+    }> = [];
+    try {
+      requests = await rr.stripeRefundRequest.findMany({
+        where: { stripePaymentId: { in: paymentIds } },
+      });
+    } catch {
+      requests = [];
+    }
+
+    const requestsByPayment = new Map<string, typeof requests>();
+    for (const row of requests) {
+      const list = requestsByPayment.get(row.stripePaymentId) ?? [];
+      list.push(row);
+      requestsByPayment.set(row.stripePaymentId, list);
+    }
+
     return NextResponse.json({
       success: true as const,
-      payments: payments.map((p) => ({
-        id: p.id,
-        bookingId: p.bookingId,
-        bookingReference: p.Booking.bookingReference,
-        customerName: p.Booking.customerFullName,
-        customerEmail: p.Booking.customerEmail,
-        vehicleName: p.Booking.vehicleNameSnapshot,
-        pickupDate: p.Booking.pickupDateTime,
-        returnDate: p.Booking.returnDateTime,
-        amountEur: p.amountCents / 100,
-        currency: p.currency,
-        stripeStatus: p.stripeStatus,
-        refundStatus: p.refundStatus,
-        refundedAmountEur: p.refundedAmountCents / 100,
-        bookingStatus: p.Booking.status,
-        bookingPaymentStatus: p.Booking.paymentStatus,
-        stripeCheckoutSessionId: p.stripeCheckoutSessionId,
-        stripePaymentIntentId: p.stripePaymentIntentId,
-        refunds: p.StripeRefund.map((r) => ({
-          amountEur: r.amountCents / 100,
-          status: r.status,
-          createdAt: r.createdAt,
-        })),
-        createdAt: p.createdAt,
-        updatedAt: p.updatedAt,
-      })),
+      payments: payments.map((p) => {
+        const counters: PaymentRefundCounters = {
+          amountCents: p.amountCents,
+          rentalAmountCents: p.rentalAmountCents,
+          depositAmountCents: p.depositAmountCents,
+          refundedAmountCents: p.refundedAmountCents,
+          rentalRefundedCents: p.rentalRefundedCents,
+          depositRefundedCents: p.depositRefundedCents,
+        };
+        const paymentRequests = (requestsByPayment.get(p.id) ?? []).map((r) => ({
+          stripeRefundId: r.stripeRefundId,
+          purpose: r.purpose as LinkedRefundRequest["purpose"],
+          status: r.status as LinkedRefundRequest["status"],
+          amountCents: r.amountCents,
+        }));
+        const metrics = buildAdminPaymentListRefundMetrics({
+          payment: counters,
+          requests: paymentRequests,
+          stripeRefunds: p.StripeRefund.map((r) => ({
+            stripeRefundId: r.stripeRefundId,
+            amountCents: r.amountCents,
+          })),
+        });
+
+        return {
+          id: p.id,
+          bookingId: p.bookingId,
+          bookingReference: p.Booking.bookingReference,
+          customerName: p.Booking.customerFullName,
+          customerEmail: p.Booking.customerEmail,
+          vehicleName: p.Booking.vehicleNameSnapshot,
+          pickupDate: p.Booking.pickupDateTime,
+          returnDate: p.Booking.returnDateTime,
+          amountEur: p.amountCents / 100,
+          rentalAmountEur: p.rentalAmountCents / 100,
+          depositAmountEur: p.depositAmountCents / 100,
+          rentalRefundedEur: p.rentalRefundedCents / 100,
+          depositRefundedEur: p.depositRefundedCents / 100,
+          rentalAvailableEur: metrics.rentalAvailableCents / 100,
+          depositAvailableEur: metrics.depositAvailableCents / 100,
+          combinedAvailableEur: metrics.combinedAvailableCents / 100,
+          availabilityReliable: metrics.availabilityReliable,
+          currency: p.currency,
+          stripeStatus: p.stripeStatus,
+          refundStatus: p.refundStatus,
+          refundedAmountEur: p.refundedAmountCents / 100,
+          bookingStatus: p.Booking.status,
+          bookingPaymentStatus: p.Booking.paymentStatus,
+          depositMethod: p.Booking.depositMethod,
+          stripeCheckoutSessionId: p.stripeCheckoutSessionId,
+          stripePaymentIntentId: p.stripePaymentIntentId,
+          needsReconciliation: metrics.needsReconciliation,
+          reconciliationReasons: metrics.reconciliationReasons,
+          unmatchedRefundIds: metrics.unmatchedRefundIds,
+          refunds: p.StripeRefund.map((r) => ({
+            stripeRefundId: r.stripeRefundId,
+            amountEur: r.amountCents / 100,
+            status: r.status,
+            createdAt: r.createdAt,
+          })),
+          createdAt: p.createdAt,
+          updatedAt: p.updatedAt,
+        };
+      }),
       pagination: {
         page,
         limit,

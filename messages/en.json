@@ -1234,6 +1234,7 @@
       "hotels": "Hotels",
       "hotelCodes": "Hotel Codes",
       "payments": "Hotel Payments",
+      "stripePayments": "Stripe Payments",
       "reports": "Reports"
     },
     "cards": {
@@ -2095,7 +2096,8 @@
         "cancelDialog": {
           "title": "Cancel booking",
           "description": "Cancel booking {reference} and release the assigned vehicle unit.",
-          "refundPayment": "Mark payment as refunded",
+          "paidPaymentNotice": "This booking is marked paid. Cancelling does not refund the customer. Issue any Stripe rental refund separately (ADMIN only) after cancellation if needed.",
+          "emailRefundWarning": "Do not promise a refund in this email unless a Stripe refund has already been issued. Cancellation alone does not refund the customer.",
           "depositOutcome": "Security deposit outcome",
           "depositUnchanged": "Leave deposit status unchanged",
           "note": "Cancellation note",
@@ -2406,6 +2408,78 @@
         "create": "Create settlement",
         "save": "Save changes",
         "cancel": "Cancel"
+      }
+    },
+    "stripePayments": {
+      "header": "Stripe Payments",
+      "pageTitle": "Customer Stripe payments",
+      "pageDescription": "Review online booking charges and issue purpose-aware rental or security-deposit refunds. Cancellation and completion never refund Stripe automatically — use an explicit refund action here.",
+      "loading": "Loading payments…",
+      "loadError": "Unable to load Stripe payments.",
+      "empty": "No Stripe payments found.",
+      "searchPlaceholder": "Search booking reference or customer",
+      "refresh": "Refresh",
+      "columns": {
+        "booking": "Booking",
+        "customer": "Customer",
+        "amount": "Amount",
+        "status": "Stripe status",
+        "refund": "Refunded",
+        "actions": "Actions"
+      },
+      "rentalAllocated": "Rental allocation: €{amount}",
+      "depositAllocated": "Deposit allocation: €{amount}",
+      "rentalAvailable": "Rental available: €{amount}",
+      "depositAvailable": "Deposit available: €{amount}",
+      "needsReconciliation": "Blocked: historical refunds need ADMIN reconciliation before purpose-specific refunds.",
+      "availabilityUnavailable": "Refund capacity unavailable until payment accounting is repaired.",
+      "staffReadOnlyHint": "STAFF can view Stripe payments. Refund and reconciliation actions require an ADMIN account.",
+      "refundAction": "Refund",
+      "reconcileAction": "Reconcile",
+      "dialog": {
+        "title": "Issue Stripe refund",
+        "purpose": "Refund purpose",
+        "purposeRental": "Rental",
+        "purposeDeposit": "Security deposit",
+        "amount": "Amount (EUR, optional — omit for remaining purpose balance)",
+        "reason": "Reason",
+        "notes": "Notes (optional)",
+        "clientRequestId": "Client request ID (stable for retries)",
+        "newAttempt": "Start new attempt",
+        "submit": "Submit refund",
+        "submitting": "Submitting…",
+        "cancel": "Cancel",
+        "pendingHint": "Stripe has not confirmed success yet. Retry with the same client request ID.",
+        "blockedHint": "This payment is blocked until unmatched historical refunds are reconciled.",
+        "prePickupHint": "Security deposit refunds normally require COMPLETED bookings. Pre-pickup cancellations from CONFIRMED are an explicit ADMIN exception validated on the server.",
+        "depositRequiresCompleted": "Security deposit refund is disabled here until the booking status is COMPLETED.",
+        "success": "Refund succeeded.",
+        "pending": "Refund reserved and pending Stripe confirmation.",
+        "error": "Refund could not be completed."
+      },
+      "reconcile": {
+        "title": "Reconcile historical refunds",
+        "evidence": "Evidence / audit note (required)",
+        "purpose": "Purpose for {refundId}",
+        "purposePlaceholder": "Select purpose…",
+        "purposeRequired": "Choose RENTAL or SECURITY_DEPOSIT for every unmatched refund. Purpose is never inferred.",
+        "purposeHint": "Each unmatched Stripe refund ID needs an explicit purpose choice. Booking status is not used to guess purpose.",
+        "submit": "Save allocations",
+        "submitting": "Saving…",
+        "cancel": "Cancel",
+        "success": "Historical refunds reconciled.",
+        "error": "Reconciliation failed."
+      },
+      "errors": {
+        "ineligible": "This payment is not eligible for a new Stripe refund.",
+        "no_capacity": "No remaining refundable amount for the selected purpose.",
+        "needs_reconciliation": "Historical refunds must be reconciled before issuing a new refund.",
+        "request_conflict": "This client request ID was already used with different refund parameters."
+      },
+      "reasons": {
+        "requested_by_customer": "Requested by customer",
+        "duplicate": "Duplicate",
+        "fraudulent": "Fraudulent"
       }
     },
     "reports": {

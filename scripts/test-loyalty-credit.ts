@@ -190,7 +190,8 @@ function bookingPayload(input: {
       willPresentLicenseAtPickup: false,
       willPresentIdAtPickup: false,
     },
-    deposit: { depositMethod: "IN_PERSON" },
+    // Standard Stripe bookings must collect the deposit online; ALREADY_PAID keeps IN_PERSON.
+    deposit: { depositMethod: input.alreadyPaid ? "IN_PERSON" : "ONLINE" },
     payment: input.alreadyPaid
       ? { mode: "ALREADY_PAID", proofPath: `uploads/loyalty-${testSuffix}.pdf` }
       : { mode: "STRIPE", proofPath: null },
@@ -537,9 +538,13 @@ async function main(): Promise<void> {
     bookingIds.push(firstBooking.bookingId);
     const publicBooking = await db.booking.findUniqueOrThrow({ where: { id: firstBooking.bookingId } });
     assert.equal(publicBooking.loyaltyCreditAmount?.toNumber(), 5);
-    assert.equal(publicBooking.totalDueOnline.toNumber(), chargesAfterLoyalty(publicBooking.subtotal.toNumber(), 5));
+    assert.equal(publicBooking.depositMethod, "ONLINE");
+    assert.equal(
+      publicBooking.totalDueOnline.toNumber(),
+      chargesAfterLoyalty(publicBooking.subtotal.toNumber(), 5) + 250,
+    );
     assert.equal(publicBooking.depositAmount.toNumber(), 250);
-    assert.equal(publicBooking.totalDueLater.toNumber(), 250);
+    assert.equal(publicBooking.totalDueLater.toNumber(), 0);
     assert.equal(publicBooking.subtotal.toNumber() >= 5, true);
     const redeemed = await db.customerLoyaltyCredit.findFirst({
       where: { redeemedBookingId: publicBooking.id },

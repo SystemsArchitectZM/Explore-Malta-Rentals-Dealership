@@ -42,13 +42,31 @@ function loadPublicAssetRewriteEntries(): Array<{ source: string; destination: s
 }
 
 const nextConfig: NextConfig = {
-  /* pg optionally requires `fs` and `pg-native`; resend optionally imports React Email. */
-  serverExternalPackages: ["pg", "resend"],
+  /* Keep native Node DB drivers and Resend/React Email out of Edge/webpack graphs. */
+  serverExternalPackages: [
+    "pg",
+    "pg-connection-string",
+    "pg-pool",
+    "pgpass",
+    "@prisma/adapter-pg",
+    "resend",
+  ],
   webpack: (config, { isServer, nextRuntime, webpack }) => {
     config.plugins.push(
       new webpack.IgnorePlugin({ resourceRegExp: /^pg-native$/ }),
       new webpack.IgnorePlugin({ resourceRegExp: /^@react-email\/render$/ }),
     );
+
+    // next dev compiles instrumentation for Edge as well as Node. Replace the
+    // Prisma/pg entry with a no-op so Edge never resolves `fs` / `node:*`.
+    if (nextRuntime === "edge") {
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(
+          /[\\/]instrumentation-node(\.ts|\.js|\.mjs)?$/,
+          resolve(process.cwd(), "src/instrumentation-edge-stub.ts"),
+        ),
+      );
+    }
 
     /* The browser and edge compilers also parse instrumentation.ts. */
     if (!isServer || nextRuntime === "edge") {

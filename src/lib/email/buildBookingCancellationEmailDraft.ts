@@ -6,6 +6,9 @@ export type BookingCancellationDraftInput = {
   vehicleName: string;
   pickupDateTime: string | Date;
   returnDateTime: string | Date;
+  /**
+   * @deprecated Ignored. Kept so older callers compile; drafts never promise a refund.
+   */
   refundPayment?: boolean;
 };
 
@@ -19,11 +22,13 @@ function formatWhen(value: string | Date): string {
   return format(date, "dd MMM yyyy, HH:mm");
 }
 
-function refundParagraph(refundPayment: boolean | undefined): string {
-  if (refundPayment) {
-    return "A refund of your payment will be processed. If you have questions about timing, reply to this email.";
-  }
-  return "If you have already made a payment, our team will be in touch about any amount due back to you.";
+/** Accurate copy: cancellation ≠ Stripe refund completed or scheduled. */
+export function cancellationPaymentClarification(): string {
+  return [
+    "This message confirms that your booking has been cancelled.",
+    "It does not confirm that any payment has been refunded.",
+    "If a rental payment refund applies, our team will handle it separately and contact you if needed.",
+  ].join(" ");
 }
 
 /**
@@ -43,7 +48,7 @@ export function buildBookingCancellationEmailDraft(
     `Pickup: ${formatWhen(input.pickupDateTime)}`,
     `Return: ${formatWhen(input.returnDateTime)}`,
     "",
-    refundParagraph(input.refundPayment),
+    cancellationPaymentClarification(),
     "",
     "We're sorry we won't see you this time. If you would like to book again or need any help, just reply to this email and our team will assist you.",
     "",

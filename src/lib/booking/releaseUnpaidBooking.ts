@@ -1,4 +1,4 @@
-import type { BookingStatus, Prisma } from "@/generated/prisma/index";
+import type { BookingStatus, PaymentStatus, Prisma } from "@/generated/prisma/index";
 import { restoreLoyaltyCreditForUnpaidBooking } from "@/lib/loyalty/loyalty-credit";
 import { deleteOccupancyForBooking } from "@/lib/vehicle-unit-occupancy";
 
@@ -19,9 +19,16 @@ export type ReleaseUnpaidBookingResult =
 
 const RELEASABLE_STATUSES: BookingStatus[] = ["PENDING_PAYMENT", "CONFIRMED"];
 
+/** Booking.paymentStatus values treated as unpaid for soft-reserve release. */
+export const UNPAID_RELEASE_PAYMENT_STATUSES: PaymentStatus[] = ["PENDING", "FAILED"];
+
 /**
  * Cancels an unpaid online booking and frees the vehicle unit occupancy.
  * Idempotent: already-cancelled bookings are reported as not_releasable.
+ *
+ * Loyalty restoration runs only after a conditional status transition succeeds
+ * inside the caller's transaction, so a concurrent payment confirmation that
+ * moves the booking to PAID/CONFIRMED wins and prevents credit restoration.
  */
 export async function releaseUnpaidBooking(
   db: ReleaseDb,
@@ -54,15 +61,17 @@ export async function releaseUnpaidBooking(
         ? booking.totalDueOnline
         : booking.totalDueOnline.toNumber();
 
-    const isPendingPayment = booking.status === "PENDING_PAYMENT";
+    const isPendingUnpaid =
+      booking.status === "PENDING_PAYMENT" &&
+      UNPAID_RELEASE_PAYMENT_STATUSES.includes(booking.paymentStatus);
+
     const isLegacyConfirmedUnpaid =
       options.allowConfirmedUnpaid === true &&
       booking.status === "CONFIRMED" &&
       totalDueOnline > 0 &&
-      booking.paymentStatus !== "PAID" &&
-      booking.paymentStatus !== "REFUNDED";
+      UNPAID_RELEASE_PAYMENT_STATUSES.includes(booking.paymentStatus);
 
-    if (!isPendingPayment && !isLegacyConfirmedUnpaid) {
+    if (!isPendingUnpaid && !isLegacyConfirmedUnpaid) {
       return { ok: true, released: false, reason: "not_releasable" };
     }
 
@@ -71,6 +80,24 @@ export async function releaseUnpaidBooking(
     }
 
     const previousStatus = booking.status;
+
+    // Conditional write: refuse to cancel if payment confirmation won the race.
+    const cancelled = await db.booking.updateMany({
+      where: {
+        id: bookingId,
+        status: previousStatus,
+        paymentStatus: { in: [...UNPAID_RELEASE_PAYMENT_STATUSES] },
+      },
+      data: {
+        status: "CANCELLED",
+        paymentStatus: "FAILED",
+      },
+    });
+
+    if (cancelled.count !== 1) {
+      return { ok: true, released: false, reason: "not_releasable" };
+    }
+
     const restoredCredit = await restoreLoyaltyCreditForUnpaidBooking(db, booking.id);
     const note =
       options.note?.trim() ||
@@ -78,14 +105,6 @@ export async function releaseUnpaidBooking(
     const noteWithCredit = restoredCredit.restored
       ? `${note} €5 loyalty credit returned to available because payment was not completed.`
       : note;
-
-    await db.booking.update({
-      where: { id: bookingId },
-      data: {
-        status: "CANCELLED",
-        paymentStatus: booking.paymentStatus === "PAID" ? "PAID" : "FAILED",
-      },
-    });
 
     if (booking.vehicleUnitId) {
       await db.vehicleUnit.update({

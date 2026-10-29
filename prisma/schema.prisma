@@ -640,19 +640,25 @@ model StripePayment {
   stripePaymentIntentId   String?             @unique
   stripeCheckoutSessionId String?             @unique
   amountCents             Int
+  /// Rental portion of amountCents. Historical rows: equals amountCents.
+  rentalAmountCents       Int
+  /// Security-deposit portion of amountCents. Historical rows: 0 (not invented).
+  depositAmountCents      Int                 @default(0)
   currency                String              @default("eur")
   stripeStatus            StripePaymentStatus @default(PENDING)
   refundStatus            RefundStatus        @default(NONE)
+  /// Combined succeeded (Stripe-reconciled) refund total. Kept for compatibility.
   refundedAmountCents     Int                 @default(0)
-  rentalAmountCents       Int
-  depositAmountCents      Int                 @default(0)
+  /// Succeeded rental-purpose refunds only. Pending capacity is derived from StripeRefundRequest.
   rentalRefundedCents     Int                 @default(0)
+  /// Succeeded deposit-purpose refunds only. Pending capacity is derived from StripeRefundRequest.
   depositRefundedCents    Int                 @default(0)
   metadata                Json?
   createdAt               DateTime            @default(now())
   updatedAt               DateTime
   Booking                 Booking             @relation(fields: [bookingId], references: [id])
   StripeRefund            StripeRefund[]
+  StripeRefundRequest     StripeRefundRequest[]
   StripeTransaction       StripeTransaction[]
 
   @@index([createdAt])
@@ -675,6 +681,30 @@ model StripeRefund {
   @@index([stripePaymentId])
 }
 
+/// Durable admin refund claim / reservation. Exists before Stripe returns a refund ID.
+/// Pending reserved capacity = SUM(amountCents) WHERE status = PENDING (per payment / purpose).
+model StripeRefundRequest {
+  id              String                    @id
+  stripePaymentId String
+  /// Stable client idempotency identity. Stripe idempotency key: refund:{paymentId}:{clientRequestId}
+  clientRequestId String                    @unique
+  purpose         RefundPurpose
+  amountCents     Int
+  status          StripeRefundRequestStatus @default(PENDING)
+  /// Set only when Stripe returns (or webhook delivers) a real refund id. Never fabricate.
+  stripeRefundId  String?                   @unique
+  initiatedBy     String?
+  notes           String?
+  metadata        Json?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime
+  StripePayment   StripePayment             @relation(fields: [stripePaymentId], references: [id], onDelete: Cascade)
+
+  @@index([stripePaymentId])
+  @@index([stripePaymentId, status])
+  @@index([stripePaymentId, purpose, status])
+}
+
 model StripeTransaction {
   id                  String        @id
   stripePaymentId     String
@@ -690,19 +720,54 @@ model StripeTransaction {
   @@index([stripePaymentId])
 }
 
+/// Stripe webhook delivery record with a lease-based processing claim.
+///
+/// Compatibility: `processed` remains authoritative-true for completed events and is
+/// written together with status PROCESSED. The migration only enforces the one-way
+/// rule (status PROCESSED => processed = true) so a rolled-back app that only sets
+/// `processed` never violates a constraint; the new app treats `processed = true` as
+/// already processed even if `status` was left stale by older code.
 model WebhookEvent {
-  id            String    @id
-  stripeEventId String    @unique
-  eventType     String
-  processed     Boolean   @default(false)
-  processedAt   DateTime?
-  payload       Json
-  error         String?
-  createdAt     DateTime  @default(now())
+  id              String             @id
+  stripeEventId   String             @unique
+  eventType       String
+  processed       Boolean            @default(false)
+  processedAt     DateTime?
+  payload         Json
+  /// Truncated last error text (legacy column; retained for history).
+  error           String?
+  createdAt       DateTime           @default(now())
+  status          WebhookEventStatus @default(RECEIVED)
+  /// Opaque owner token of the current lease; null unless status = PROCESSING.
+  claimToken      String?
+  /// Lease expiry (UTC, database clock); null unless status = PROCESSING.
+  claimExpiresAt  DateTime?
+  /// Fencing value; incremented on every successful claim.
+  claimGeneration Int                @default(0)
+  /// Number of claims acquired (handler attempts started).
+  attemptCount    Int                @default(0)
+  /// Stable machine-readable code for the last failure (see webhook-errors).
+  lastErrorCode   String?
+  lastAttemptAt   DateTime?
+  /// Stable code explaining why the event is DEAD_LETTER (e.g. RETRY_LIMIT_EXCEEDED,
+  /// EVENT_METADATA_MISSING). lastErrorCode/error keep the original failure evidence.
+  deadLetterReason String?
+  deadLetteredAt  DateTime?
 
   @@index([createdAt])
   @@index([eventType, processed])
   @@index([stripeEventId])
+  @@index([status, claimExpiresAt])
+  @@index([status, createdAt])
+  @@index([status, lastAttemptAt])
+}
+
+enum WebhookEventStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  RETRYABLE_FAILED
+  DEAD_LETTER
 }
 
 enum BookingStatus {
@@ -753,6 +818,25 @@ enum RefundReason {
   ADMIN_INITIATED
   BOOKING_CANCELLED
   FAILED_BOOKING
+}
+
+/// Allocation purpose for a durable refund request (and future allocation logic).
+/// Historical StripeRefund rows without a request remain purpose-unknown at the Stripe mirror;
+/// service logic must treat unmatched historical StripeRefunds as UNSPECIFIED for caps.
+enum RefundPurpose {
+  RENTAL
+  SECURITY_DEPOSIT
+  UNSPECIFIED
+}
+
+/// Lifecycle of StripeRefundRequest. No UNKNOWN/RECONCILING value:
+/// stuck/unknown Stripe outcomes stay PENDING until a definitive webhook/admin outcome;
+/// historical allocation ambiguity is handled over StripeRefund + payment allocations in service code.
+enum StripeRefundRequestStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
 }
 
 enum SecurityDepositStatus {

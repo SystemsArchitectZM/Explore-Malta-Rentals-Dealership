@@ -74,6 +74,15 @@ async function main() {
         bookingId: payment.bookingId,
         paymentIntentId,
         checkoutSessionId: sessionId,
+        integrity: {
+          source: "checkout_session",
+          session: {
+            id: session.id,
+            payment_status: session.payment_status,
+            amount_total: session.amount_total,
+            currency: session.currency,
+          },
+        },
       });
       reconciled += 1;
       console.log(`[ok] ${ref}: marked PAID/CONFIRMED and attempted confirmation email`);
