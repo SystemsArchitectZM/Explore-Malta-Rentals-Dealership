@@ -9,6 +9,7 @@ import { randomBytes } from "node:crypto";
 
 import type { BookingStatus, Prisma, VehicleUnitStatus } from "../src/generated/prisma/index";
 import { isVehicleReplacementBookingStatus } from "../src/lib/admin/bookings/vehicle-replacement-eligibility";
+import { assertSafeScriptDatabase } from "./assert-safe-script-database";
 
 const testSuffix = Date.now().toString(36);
 
@@ -82,6 +83,7 @@ function moneyOf(booking: {
 }
 
 async function runDatabaseTests(): Promise<void> {
+  assertSafeScriptDatabase("test-replace-booking-vehicle");
   const { prisma } = await import("../src/lib/prisma");
   const { extendBooking } = await import("../src/lib/admin/bookings/extendBooking");
   const { changeBookingVehicle } = await import("../src/lib/admin/bookings/changeBookingVehicle");

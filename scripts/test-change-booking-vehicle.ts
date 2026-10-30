@@ -153,6 +153,8 @@ function runPureTests(): void {
 }
 
 async function runDatabaseTests(): Promise<void> {
+  const { assertSafeScriptDatabase } = await import("./assert-safe-script-database");
+  assertSafeScriptDatabase("test-change-booking-vehicle");
   const { prisma } = await import("../src/lib/prisma");
   const {
     changeBookingVehicle,
@@ -736,6 +738,8 @@ async function runDatabaseTests(): Promise<void> {
  * handover rejects the old unit and accepts the new unit.
  */
 async function runReleaseAndHandoverConsistencyTest(): Promise<void> {
+  const { assertSafeScriptDatabase } = await import("./assert-safe-script-database");
+  assertSafeScriptDatabase("test-change-booking-vehicle");
   const { prisma } = await import("../src/lib/prisma");
   const { changeBookingVehicle } = await import("../src/lib/admin/bookings/changeBookingVehicle");
   const { handOverVehicle } = await import("../src/lib/admin/bookings/lifecycle/handOverVehicle");

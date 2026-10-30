@@ -33,6 +33,7 @@ import {
 import { getAdminHotelCodeById } from "../src/lib/admin/hotel-codes/listAdminHotelCodes";
 import { DuplicateHotelCodeError } from "../src/lib/admin/hotel-codes";
 import { prisma } from "../src/lib/prisma";
+import { assertSafeScriptDatabase } from "./assert-safe-script-database";
 
 const testSuffix = String(Date.now()).slice(-8);
 const testPrefix = `HP${testSuffix}`;
@@ -45,6 +46,7 @@ async function cleanup(partnerIds: string[]) {
 }
 
 async function run() {
+  assertSafeScriptDatabase("test-admin-hotel-partners");
   const createdPartnerIds: string[] = [];
 
   try {

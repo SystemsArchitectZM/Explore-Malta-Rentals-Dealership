@@ -24,6 +24,7 @@ import type { AdminBookingListFilters } from "../src/lib/admin/bookings/types";
 import { replaceBookingVehicle } from "../src/lib/admin/bookings/replaceBookingVehicle";
 import { formatMaltaDateTime } from "../src/lib/format-malta-datetime";
 import { prisma } from "../src/lib/prisma";
+import { assertSafeScriptDatabase } from "./assert-safe-script-database";
 import { insertBookingOccupancy } from "../src/lib/vehicle-unit-occupancy";
 
 const FILTER_DAY = "2026-10-25";
@@ -83,6 +84,7 @@ async function listed(filters: AdminBookingListFilters = {}) {
 async function run(): Promise<void> {
   assertSchema();
   assertDayBounds();
+  assertSafeScriptDatabase("test-admin-booking-return-date");
 
   const bookingIds: string[] = [];
   let vehicleId: string | null = null;

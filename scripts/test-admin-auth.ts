@@ -19,6 +19,7 @@ import {
   isAdminRoutePath,
 } from "../src/lib/admin-auth/path-utils";
 import { prisma } from "../src/lib/prisma";
+import { assertSafeScriptDatabase } from "./assert-safe-script-database";
 
 const testSuffix = String(Date.now()).slice(-8);
 const testEmail = `rate-limit-${testSuffix}@test.local`;
@@ -50,6 +51,7 @@ async function runPasswordAndPathChecks() {
 }
 
 async function runRateLimitChecks() {
+  assertSafeScriptDatabase("test-admin-auth");
   const emailNormalized = normalizeAdminLoginEmail(testEmail);
 
   await cleanupRateLimitRows();

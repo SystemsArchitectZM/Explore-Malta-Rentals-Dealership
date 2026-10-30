@@ -218,6 +218,8 @@ function runPureTests(): void {
 }
 
 async function runDatabaseTests(): Promise<void> {
+  const { assertSafeScriptDatabase } = await import("./assert-safe-script-database");
+  assertSafeScriptDatabase("test-review-request");
   const { prisma } = await import("../src/lib/prisma");
   const { markVehicleReturned } = await import("../src/lib/admin/bookings/lifecycle/markVehicleReturned");
   const { completeBooking } = await import("../src/lib/admin/bookings/lifecycle/completeBooking");

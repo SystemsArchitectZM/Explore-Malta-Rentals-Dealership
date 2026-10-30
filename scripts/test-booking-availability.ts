@@ -18,6 +18,7 @@ import {
 } from "../src/lib/booking";
 import { calculateBookingPrice } from "../src/lib/pricing/calculate-booking-price";
 import { prisma } from "../src/lib/prisma";
+import { assertSafeScriptDatabase } from "./assert-safe-script-database";
 import {
   assignAvailableVehicleUnit,
   findAvailableVehicleUnits,
@@ -1437,6 +1438,7 @@ async function runHandoverUnitChangeTests(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  assertSafeScriptDatabase("test-booking-availability");
   await cleanup();
 
   await runUnitAssignmentTests();

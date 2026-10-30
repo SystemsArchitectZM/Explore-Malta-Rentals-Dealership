@@ -8,11 +8,13 @@ import { randomBytes } from "node:crypto";
 import { addDays } from "date-fns";
 
 import { prisma } from "../src/lib/prisma";
+import { assertSafeScriptDatabase } from "./assert-safe-script-database";
 import { insertBookingOccupancy } from "../src/lib/vehicle-unit-occupancy";
 
 const CUSTOMER_EMAIL = "zakirmatloob149@gmail.com";
 
 async function main() {
+  assertSafeScriptDatabase("create-test-bookings-zakir");
   const units = await prisma.vehicleUnit.findMany({
     where: {
       isActive: true,

@@ -16,6 +16,7 @@ import {
 import { createAdminVehicleUnit } from "../src/lib/admin/vehicle-units";
 import { submitBooking, type BookingSubmissionInput } from "../src/lib/booking";
 import { prisma } from "../src/lib/prisma";
+import { assertSafeScriptDatabase } from "./assert-safe-script-database";
 import { createReservationHold } from "../src/lib/reservation-holds";
 import {
   assignAvailableVehicleUnit,
@@ -338,6 +339,7 @@ async function testLegacyBookingWithoutColor(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  assertSafeScriptDatabase("test-vehicle-unit-color-availability");
   await cleanup();
   try {
     await testColorNormalization();

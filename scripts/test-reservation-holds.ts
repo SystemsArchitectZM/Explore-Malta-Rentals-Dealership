@@ -2,6 +2,7 @@ import "dotenv/config";
 
 import type { BookableHelmetSize } from "../src/lib/booking/helmet-sizes";
 import { prisma } from "../src/lib/prisma";
+import { assertSafeScriptDatabase } from "./assert-safe-script-database";
 
 const BASE_URL = (process.env.HOLD_TEST_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 const TEST_EMAIL = "reservation-hold-test@example.com";
@@ -166,6 +167,7 @@ async function cleanupTestData() {
 }
 
 async function main() {
+  assertSafeScriptDatabase("test-reservation-holds");
   await ensureServerReachable();
   await cleanupTestData();
 

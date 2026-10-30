@@ -6,6 +6,7 @@ import { deleteAdminVehicle } from "../src/lib/admin/vehicles/mutateAdminVehicle
 import { getAdminVehicleById } from "../src/lib/admin/vehicles/listAdminVehicles";
 import { adminVehicleWriteSchema } from "../src/lib/admin/vehicles/vehicle-schema";
 import { prisma } from "../src/lib/prisma";
+import { assertSafeScriptDatabase } from "./assert-safe-script-database";
 
 const basePayload = {
   name: "Vehicle Listing Test",
@@ -27,6 +28,7 @@ const basePayload = {
 };
 
 async function run() {
+  assertSafeScriptDatabase("test-admin-vehicles");
   const parsed = adminVehicleWriteSchema.safeParse(basePayload);
   assert.equal(parsed.success, true, "valid payload should pass schema without license plate");
 

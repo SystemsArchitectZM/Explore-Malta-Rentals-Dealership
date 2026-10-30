@@ -27,6 +27,7 @@ import {
   redeemOldestAvailableLoyaltyCredit,
 } from "../src/lib/loyalty/loyalty-credit";
 import { prisma } from "../src/lib/prisma";
+import { assertSafeScriptDatabase } from "./assert-safe-script-database";
 import { deliverReviewRequestEmail } from "../src/lib/reviews/deliver-review-request-email";
 import { insertBookingOccupancy } from "../src/lib/vehicle-unit-occupancy";
 
@@ -201,6 +202,7 @@ function bookingPayload(input: {
 
 async function main(): Promise<void> {
   runPureTests();
+  assertSafeScriptDatabase("test-loyalty-credit");
   process.env.RESEND_API_KEY = "";
 
   const db = prisma;
