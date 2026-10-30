@@ -38,5 +38,6 @@ export {
   isAdminLoginPath,
   isAdminProtectedPath,
   isAdminRoutePath,
+  safeAdminRedirectPath,
 } from "@/lib/admin-auth/path-utils";
 export type { AdminSessionRecord, AdminSessionUser } from "@/lib/admin-auth/types";

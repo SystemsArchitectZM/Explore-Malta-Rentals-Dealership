@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { AdminLoginHeroImage } from "@/features/admin/components/admin-login-hero-image";
+import { safeAdminRedirectPath } from "@/lib/admin-auth/path-utils";
 
 type AdminLoginFormProps = Readonly<{
   locale: string;
@@ -31,7 +32,7 @@ export function AdminLoginForm({ locale, contactEmail }: AdminLoginFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const redirectTarget = searchParams.get("redirect") ?? `/${locale}/admin`;
+  const redirectTarget = safeAdminRedirectPath(locale, searchParams.get("redirect"));
   const forgotPasswordHref = `mailto:${contactEmail}?subject=${encodeURIComponent("Admin password reset request")}`;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {

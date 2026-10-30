@@ -17,6 +17,7 @@ import {
   isAdminLoginPath,
   isAdminProtectedPath,
   isAdminRoutePath,
+  safeAdminRedirectPath,
 } from "../src/lib/admin-auth/path-utils";
 import { prisma } from "../src/lib/prisma";
 import { assertSafeScriptDatabase } from "./assert-safe-script-database";
@@ -48,6 +49,11 @@ async function runPasswordAndPathChecks() {
   assert.equal(isAdminProtectedPath("/en/admin/bookings"), true);
   assert.equal(isAdminRoutePath("/booking"), false);
   assert.equal(extractLocaleFromPathname("/mt/admin"), "mt");
+  assert.equal(safeAdminRedirectPath("en", "/en/admin/bookings?status=paid"), "/en/admin/bookings?status=paid");
+  assert.equal(safeAdminRedirectPath("en", "https://evil.example/phish"), "/en/admin");
+  assert.equal(safeAdminRedirectPath("en", "//evil.example"), "/en/admin");
+  assert.equal(safeAdminRedirectPath("en", "/en/admin/login"), "/en/admin");
+  assert.equal(safeAdminRedirectPath("mt", "/en/admin/bookings"), "/mt/admin");
 }
 
 async function runRateLimitChecks() {
