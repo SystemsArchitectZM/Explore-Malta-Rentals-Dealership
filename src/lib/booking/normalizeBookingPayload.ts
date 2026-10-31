@@ -106,6 +106,7 @@ export function normalizeBookingPayload(payload: BookingSubmission): NormalizedB
       termsAcceptedAt: payload.consent.termsAcceptedAt
         ? new Date(payload.consent.termsAcceptedAt)
         : null,
+      consentSource: normalizeText(payload.consent.consentSource ?? null),
     },
   };
 }

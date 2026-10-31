@@ -1779,7 +1779,10 @@
           "termsAccepted": "Terms accepted",
           "termsAcceptedAt": "Terms accepted at",
           "termsVersion": "Terms version",
-          "consentSource": "Consent source",
+          "consentSource": "Booking source",
+          "consentSourceKiosk": "Kiosk",
+          "consentSourceWeb": "Website",
+          "bookedViaKiosk": "Booked via kiosk",
           "confirmationEmailStatus": "Confirmation email status",
           "confirmationEmailSentAt": "Confirmation email sent at",
           "handoverDateTime": "Handover date/time",
@@ -1848,10 +1851,38 @@
         "confirm": "Confirm",
         "readOnlyCompleted": "This booking is completed. No further lifecycle actions are available.",
         "readOnlyCancelled": "This booking was cancelled. Restore it if it was cancelled by mistake.",
+        "kioskBadge": "Kiosk",
+        "kioskBanner": "Booked via kiosk — payment, deposit, and document checks are completed at the counter.",
+        "kioskChecklist": {
+          "title": "Remaining counter steps",
+          "payment": "Collect rental payment ({amount})",
+          "deposit": "Collect security deposit ({amount})",
+          "documents": "Verify driving licence and passport/ID",
+          "pending": "Pending",
+          "done": "Done"
+        },
+        "documents": {
+          "title": "Update customer documents",
+          "description": "Upload or replace the driving licence and passport/ID for booking {reference}. Files are stored on this booking.",
+          "license": "Driving licence",
+          "passport": "Passport / ID",
+          "additionalLicense": "Additional driver licence",
+          "additionalPassport": "Additional driver passport / ID",
+          "current": "Current: {file}",
+          "none": "None on file",
+          "chooseFile": "Choose file",
+          "uploading": "Uploading…",
+          "save": "Save documents",
+          "successToast": "Documents updated.",
+          "uploadFailed": "Upload failed. Try again."
+        },
         "guidelines": {
           "currentStage": "Current Stage",
           "whatToDoNext": "What to do next",
           "availableActions": "To continue with process",
+          "processOrderHint": "Complete these in order for this booking to proceed.",
+          "adminActions": "Admin adjustments",
+          "adminActionsHint": "Optional — use only if something needs changing outside the normal flow (wrong vehicle, longer rental, or cancellation).",
           "progress": {
             "confirmed": "Confirmed",
             "handedOver": "Handed over",
@@ -1868,6 +1899,11 @@
               "title": "Confirmed: reservation active",
               "description": "The booking is accepted and a physical unit is reserved. For online payments, money has already been confirmed by Stripe. Security deposit may still be collected at pickup depending on the customer's choice.",
               "nextStep": "When the customer arrives for pickup or the vehicle is delivered, record the handover. If they want a different model before handover, change the booked vehicle. If the booking will not go ahead, cancel it to release the unit."
+            },
+            "CONFIRMED_KIOSK": {
+              "title": "Confirmed: kiosk reservation active",
+              "description": "This booking was created on the shop kiosk. The vehicle unit is reserved. Payment and the security deposit are still due at the counter — nothing was charged online. Licence and ID must be checked in person before handover.",
+              "nextStep": "Collect payment and deposit, verify documents, then hand over the vehicle. Change the model before handover if needed, or cancel if the customer will not go ahead."
             },
             "VEHICLE_HANDED_OVER": {
               "title": "Vehicle handed over — rental in progress",
@@ -1893,6 +1929,14 @@
             "handOver": {
               "summary": "Record that the customer collected or received the vehicle.",
               "effects": "Sets booking to Vehicle Handed Over. Marks payment as paid and deposit as collected when confirmed. Unit becomes Out with customer."
+            },
+            "handOverKiosk": {
+              "summary": "Step after documents: collect rental payment and security deposit at the counter, then record that the customer received the vehicle.",
+              "effects": "Sets booking to Vehicle Handed Over. Marks payment as paid and deposit as collected when you confirm them in the form. Unit becomes Out with customer."
+            },
+            "updateDocuments": {
+              "summary": "First counter step: upload or replace the customer driving licence and passport/ID before collecting payment.",
+              "effects": "Stores the files on this booking and clears the “present at pickup” flags for documents that are now on file."
             },
             "markReturned": {
               "summary": "Record that the vehicle has been returned by the customer.",
@@ -1927,6 +1971,8 @@
         },
         "actions": {
           "handOver": "Hand over the vehicle",
+          "handOverKiosk": "Collect payment & hand over",
+          "updateDocuments": "Update documents",
           "markReturned": "Mark vehicle returned",
           "complete": "Complete booking",
           "cancel": "Cancel booking",

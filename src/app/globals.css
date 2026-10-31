@@ -676,6 +676,43 @@ body {
   }
 }
 
+/* Kiosk availability — large touch calendar (overrides compact site picker). */
+.rdp-root.rdp-root.kiosk-day-picker {
+  --rdp-day-height: 3rem;
+  --rdp-day-width: 3rem;
+  --rdp-day_button-height: 2.75rem;
+  --rdp-day_button-width: 2.75rem;
+  --rdp-day_button-border-radius: 0.75rem;
+  --rdp-nav_button-height: 2.75rem;
+  --rdp-nav_button-width: 2.75rem;
+  --rdp-nav-height: 3rem;
+  --rdp-weekday-padding: 0.5rem 0;
+  font-size: 1rem;
+}
+
+.rdp-root.kiosk-day-picker .rdp-month_caption {
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: normal;
+  color: #0c2340;
+}
+
+.rdp-root.kiosk-day-picker .rdp-weekday {
+  font-size: 0.8125rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.rdp-root.kiosk-day-picker .rdp-day_button {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.rdp-root.kiosk-day-picker .rdp-chevron {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
 /* Final conversion CTA — editorial dark layout */
 .final-cta-editorial {
   color: #fff;

@@ -84,6 +84,7 @@ export type NormalizedBookingPayload = {
   consent: {
     termsAccepted: boolean;
     termsAcceptedAt: Date | null;
+    consentSource: string | null;
   };
 };
 

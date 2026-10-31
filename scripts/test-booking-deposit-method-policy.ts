@@ -152,12 +152,37 @@ function testInPersonPricingKeepsDepositLater() {
   assert.equal(pricing.totalDueLater, 250);
 }
 
+function testPayAtCounterAllowsInPersonDeposit() {
+  const result = validateBookingPayload({
+    ...BASE,
+    deposit: { depositMethod: "IN_PERSON" },
+    payment: { mode: "PAY_AT_COUNTER", proofPath: null },
+    consent: { ...BASE.consent, consentSource: "kiosk" },
+  });
+  assert.equal(result.success, true);
+}
+
+function testPayAtCounterRejectsOnlineDeposit() {
+  const result = validateBookingPayload({
+    ...BASE,
+    deposit: { depositMethod: "ONLINE" },
+    payment: { mode: "PAY_AT_COUNTER", proofPath: null },
+  });
+  assert.equal(result.success, false);
+  if (!result.success) {
+    const paths = result.errors.map((issue) => issue.path);
+    assert.ok(paths.includes("deposit.depositMethod"));
+  }
+}
+
 function main() {
   testStripeRequiresOnlineDeposit();
   testAlreadyPaidAllowsInPersonDepositWithProof();
   testAlreadyPaidRequiresProof();
   testOnlinePricingIncludesDeposit();
   testInPersonPricingKeepsDepositLater();
+  testPayAtCounterAllowsInPersonDeposit();
+  testPayAtCounterRejectsOnlineDeposit();
   console.log("test-booking-deposit-method-policy: all passed");
 }
 

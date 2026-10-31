@@ -30,6 +30,14 @@ export type {
   RestoreCancelledBookingResult,
 } from "@/lib/admin/bookings/lifecycle";
 export { updateAdminBookingStatus } from "@/lib/admin/bookings/updateAdminBookingStatus";
+export {
+  updateBookingDocuments,
+  updateBookingDocumentsSchema,
+} from "@/lib/admin/bookings/updateBookingDocuments";
+export type {
+  UpdateBookingDocumentsInput,
+  UpdateBookingDocumentsResult,
+} from "@/lib/admin/bookings/updateBookingDocuments";
 export type {
   AdminBookingDetail,
   AdminBookingListFilters,

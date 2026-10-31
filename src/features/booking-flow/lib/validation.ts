@@ -1,5 +1,6 @@
 import type { FieldPath } from "react-hook-form";
 import { z } from "zod";
+import { BOOKING_TIME_SLOTS } from "@/features/booking/lib/time-slots";
 import { BOOKING_FLOW_STEPS, type BookingFlowStepId } from "@/features/booking-flow/lib/steps";
 import { vehicleTypeNeedsHelmetFlow } from "@/features/booking-flow/lib/helmet-rental";
 import { isLicenseAllowedForVehicle } from "@/features/booking-flow/lib/license-categories";
@@ -11,6 +12,8 @@ import {
   MAX_BILLABLE_RENTAL_DAYS,
   MINIMUM_BILLABLE_RENTAL_DAYS,
 } from "@/lib/pricing/rental-duration";
+
+const OFFICE_HOURS_TIME_MESSAGE = "Time must be within office hours (09:30–19:00).";
 
 export type BookingValidationMessages = Readonly<{
   vehicleTypeRequired: string;
@@ -147,6 +150,27 @@ export function createBookingFlowSchema(m: BookingValidationMessages): z.ZodType
     }
 
     if (
+      state.rental.pickupTime &&
+      !(BOOKING_TIME_SLOTS as readonly string[]).includes(state.rental.pickupTime)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: OFFICE_HOURS_TIME_MESSAGE,
+        path: ["rental", "pickupTime"],
+      });
+    }
+    if (
+      state.rental.returnTime &&
+      !(BOOKING_TIME_SLOTS as readonly string[]).includes(state.rental.returnTime)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: OFFICE_HOURS_TIME_MESSAGE,
+        path: ["rental", "returnTime"],
+      });
+    }
+
+    if (
       state.rental.pickupDate &&
       state.rental.pickupTime &&
       state.rental.returnDate &&
@@ -263,6 +287,19 @@ export function createBookingFlowSchema(m: BookingValidationMessages): z.ZodType
         context.addIssue({
           code: z.ZodIssueCode.custom,
           message: m.additionalDriverLicense,
+          path: ["additionalDriver", "licenseCategory"],
+        });
+      } else if (
+        !isLicenseAllowedForVehicle(
+          state.additionalDriver.licenseCategory,
+          state.rental.vehicleType,
+          state.rental.vehicleId,
+          state.rental.engineCc,
+        )
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: m.licenseInvalidForVehicle,
           path: ["additionalDriver", "licenseCategory"],
         });
       }

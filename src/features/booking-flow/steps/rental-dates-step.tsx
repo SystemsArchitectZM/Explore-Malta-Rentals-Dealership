@@ -2,6 +2,7 @@
 
 import { addDays, format, parse } from "date-fns";
 import { useTranslations } from "next-intl";
+import { BOOKING_TIME_SLOTS } from "@/features/booking/lib/time-slots";
 import { StepShell } from "@/features/booking-flow/components/step-shell";
 import { useBookingFlow } from "@/features/booking-flow/context/booking-flow-context";
 import { calculateRentalDuration } from "@/lib/pricing/rental-duration";
@@ -85,14 +86,20 @@ export function RentalDatesStep() {
         <p className={sectionLabelClass}>{t("sectionTime")}</p>
         <label className="block">
           <span className={captionClass}>{t("pickupTime")}</span>
-          <input
-            type="time"
+          <select
             value={pickupTime}
             name="rental.pickupTime"
             data-field="rental.pickupTime"
             onChange={(event) => updateSection("rental", { pickupTime: event.target.value })}
             className={fieldClass(isFieldInvalid("rental.pickupTime"))}
-          />
+          >
+            <option value="">{t("pickupTime")}</option>
+            {BOOKING_TIME_SLOTS.map((slot) => (
+              <option key={slot} value={slot}>
+                {slot}
+              </option>
+            ))}
+          </select>
           {getFieldError("rental.pickupTime") ? (
             <span className={errorClass}>{getFieldError("rental.pickupTime")}</span>
           ) : null}
@@ -100,14 +107,20 @@ export function RentalDatesStep() {
 
         <label className="block">
           <span className={captionClass}>{t("returnTime")}</span>
-          <input
-            type="time"
+          <select
             value={returnTime}
             name="rental.returnTime"
             data-field="rental.returnTime"
             onChange={(event) => updateSection("rental", { returnTime: event.target.value })}
             className={fieldClass(isFieldInvalid("rental.returnTime"))}
-          />
+          >
+            <option value="">{t("returnTime")}</option>
+            {BOOKING_TIME_SLOTS.map((slot) => (
+              <option key={slot} value={slot}>
+                {slot}
+              </option>
+            ))}
+          </select>
           {getFieldError("rental.returnTime") ? (
             <span className={errorClass}>{getFieldError("rental.returnTime")}</span>
           ) : null}

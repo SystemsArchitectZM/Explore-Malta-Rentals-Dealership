@@ -659,8 +659,16 @@ export async function AdminBookingDetailView({ locale, booking }: AdminBookingDe
             label={t("details.fields.termsAcceptedAt")}
             value={booking.termsAcceptedAt ? formatMaltaDateTime(booking.termsAcceptedAt) : "—"}
           />
-          <DetailRow label={t("details.fields.termsVersion")} value={booking.termsVersion ?? "—"} />
-          <DetailRow label={t("details.fields.consentSource")} value={booking.consentSource ?? "—"} />
+          <DetailRow
+            label={t("details.fields.consentSource")}
+            value={
+              booking.consentSource?.toLowerCase() === "kiosk"
+                ? t("details.fields.consentSourceKiosk")
+                : booking.consentSource?.toLowerCase() === "web"
+                  ? t("details.fields.consentSourceWeb")
+                  : (booking.consentSource ?? "—")
+            }
+          />
         </dl>
 
         {booking.statusHistory.length > 0 ? (

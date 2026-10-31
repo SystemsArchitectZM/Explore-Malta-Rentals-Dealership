@@ -1,17 +1,31 @@
 "use client";
 
-import { ArrowRight, ArrowRightLeft, Bike, CalendarPlus, CheckCircle2, KeyRound, Loader2, RotateCcw, Undo2, XCircle } from "lucide-react";
+import { ArrowRight, ArrowRightLeft, Bike, CalendarPlus, CheckCircle2, FileUp, KeyRound, Loader2, MonitorSmartphone, RotateCcw, Undo2, XCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { AdminBookingChangeVehicleDialog } from "@/features/admin/components/admin-booking-change-vehicle-dialog";
+import { AdminBookingDocumentsDialog } from "@/features/admin/components/admin-booking-documents-dialog";
 import { AdminBookingReplaceVehicleDialog } from "@/features/admin/components/admin-booking-replace-vehicle-dialog";
 import { AdminBookingExtendDialog } from "@/features/admin/components/admin-booking-extend-dialog";
 import { resolveHandOverVehicleUnitId } from "@/lib/admin/bookings/resolve-hand-over-vehicle-unit-id";
 import type { AdminBookingDetail } from "@/lib/admin/bookings/types";
 import type { AdminVehicleUnitDto } from "@/lib/admin/vehicle-units/types";
 import { buildBookingCancellationEmailDraft } from "@/lib/email/buildBookingCancellationEmailDraft";
+
+function isKioskBooking(booking: AdminBookingDetail): boolean {
+  return booking.consentSource?.trim().toLowerCase() === "kiosk";
+}
+
+function formatEurAmount(amount: number): string {
+  return new Intl.NumberFormat("en-MT", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
 
 type AdminBookingLifecycleActionsProps = Readonly<{
   booking: AdminBookingDetail;
@@ -48,7 +62,17 @@ function storeLifecycleSuccess(bookingId: string, message: string): void {
   }
 }
 
-type ActiveDialog = "handOver" | "markReturned" | "complete" | "cancel" | "restore" | "extend" | "changeVehicle" | "replaceVehicle" | null;
+type ActiveDialog =
+  | "handOver"
+  | "markReturned"
+  | "complete"
+  | "cancel"
+  | "restore"
+  | "extend"
+  | "changeVehicle"
+  | "replaceVehicle"
+  | "updateDocuments"
+  | null;
 
 function previousStatusBeforeCancel(booking: AdminBookingDetail): "CONFIRMED" | "PENDING_PAYMENT" {
   const cancelled = booking.statusHistory.find(
@@ -85,7 +109,7 @@ function labelClassName(): string {
 const lifecycleConfirmButtonClassName =
   "inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60";
 
-type LifecycleActionVariant = "primary" | "danger" | "orange" | "sky";
+type LifecycleActionVariant = "primary" | "danger" | "orange" | "sky" | "green";
 
 function stageGuidelineTheme(status: AdminBookingDetail["status"]) {
   switch (status) {
@@ -232,9 +256,11 @@ function LifecycleProgress({
 
 function LifecycleGuideline({
   status,
+  isKiosk,
   t,
 }: Readonly<{
   status: AdminBookingDetail["status"];
+  isKiosk: boolean;
   t: ReturnType<typeof useTranslations<"Admin.bookings.lifecycle">>;
 }>) {
   const stepStatuses = [
@@ -251,6 +277,8 @@ function LifecycleGuideline({
   }
 
   const theme = stageGuidelineTheme(status);
+  const stepKey =
+    status === "CONFIRMED" && isKiosk ? "CONFIRMED_KIOSK" : status;
 
   return (
     <div className="mt-4 space-y-3">
@@ -260,18 +288,80 @@ function LifecycleGuideline({
           {t("guidelines.currentStage")}
         </p>
         <p className="mt-1 text-sm font-semibold text-slate-900">
-          {t(`guidelines.steps.${status}.title` as "guidelines.steps.CONFIRMED.title")}
+          {t(`guidelines.steps.${stepKey}.title` as "guidelines.steps.CONFIRMED.title")}
         </p>
         <p className="mt-1 text-sm leading-relaxed text-slate-600">
-          {t(`guidelines.steps.${status}.description` as "guidelines.steps.CONFIRMED.description")}
+          {t(`guidelines.steps.${stepKey}.description` as "guidelines.steps.CONFIRMED.description")}
         </p>
         {status !== "COMPLETED" ? (
           <p className={["mt-3 border-t pt-3 text-sm leading-relaxed text-slate-700", theme.divider].join(" ")}>
             <span className="font-semibold text-slate-800">{t("guidelines.whatToDoNext")}: </span>
-            {t(`guidelines.steps.${status}.nextStep` as "guidelines.steps.CONFIRMED.nextStep")}
+            {t(`guidelines.steps.${stepKey}.nextStep` as "guidelines.steps.CONFIRMED.nextStep")}
           </p>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function KioskCounterChecklist({
+  booking,
+  t,
+}: Readonly<{
+  booking: AdminBookingDetail;
+  t: ReturnType<typeof useTranslations<"Admin.bookings.lifecycle">>;
+}>) {
+  if (!isKioskBooking(booking) || booking.status !== "CONFIRMED") {
+    return null;
+  }
+
+  const paymentPending = booking.paymentStatus === "PENDING" || booking.paymentStatus === "FAILED";
+  const depositPending = booking.securityDepositStatus === "PENDING";
+  const documentsDone = Boolean(
+    booking.customerLicenseUploadPath?.trim() && booking.customerPassportUploadPath?.trim(),
+  );
+  const paymentAmount = booking.totalDueLater > 0 ? booking.totalDueLater : booking.subtotal;
+  const depositAmount = booking.depositAmount;
+
+  const rows = [
+    {
+      key: "payment",
+      label: t("kioskChecklist.payment", { amount: formatEurAmount(paymentAmount) }),
+      done: !paymentPending,
+    },
+    {
+      key: "deposit",
+      label: t("kioskChecklist.deposit", { amount: formatEurAmount(depositAmount) }),
+      done: !depositPending,
+    },
+    {
+      key: "documents",
+      label: t("kioskChecklist.documents"),
+      done: documentsDone,
+    },
+  ] as const;
+
+  return (
+    <div className="mt-4 rounded-xl border border-amber-300/70 bg-amber-50 px-4 py-3">
+      <p className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+        <MonitorSmartphone className="size-4 shrink-0" aria-hidden />
+        {t("kioskChecklist.title")}
+      </p>
+      <ul className="mt-3 space-y-2">
+        {rows.map((row) => (
+          <li key={row.key} className="flex items-start justify-between gap-3 text-sm text-slate-800">
+            <span className="min-w-0 leading-snug">{row.label}</span>
+            <span
+              className={[
+                "inline-flex shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold",
+                row.done ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900",
+              ].join(" ")}
+            >
+              {row.done ? t("kioskChecklist.done") : t("kioskChecklist.pending")}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -284,6 +374,7 @@ function LifecycleActionCard({
   icon: Icon,
   onAction,
   variant = "primary",
+  stepNumber,
 }: Readonly<{
   title: string;
   summary: string;
@@ -292,12 +383,23 @@ function LifecycleActionCard({
   icon: typeof KeyRound;
   onAction: () => void;
   variant?: LifecycleActionVariant;
+  stepNumber?: number;
 }>) {
   return (
     <article className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
       <div className="space-y-4">
         <div className="space-y-2">
-          <h4 className="text-sm font-semibold text-slate-900">{title}</h4>
+          <h4 className="flex items-start gap-2.5 text-sm font-semibold text-slate-900">
+            {stepNumber != null ? (
+              <span
+                className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-[#f9900f] text-xs font-bold text-white"
+                aria-hidden
+              >
+                {stepNumber}
+              </span>
+            ) : null}
+            <span>{title}</span>
+          </h4>
           <p className="text-sm leading-relaxed text-slate-600">{summary}</p>
           <p className="text-xs leading-relaxed text-slate-500">
             <span className="font-semibold text-slate-600">{effectsLabel}: </span>
@@ -313,10 +415,12 @@ function LifecycleActionCard({
               variant === "danger"
                 ? "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
                 : variant === "orange"
-                  ? "bg-orange-600 text-white hover:bg-orange-700"
-                  : variant === "sky"
-                    ? "bg-sky-600 text-white hover:bg-sky-700"
-                    : "bg-[#3a7ca5] text-white hover:bg-[#2f6688]",
+                  ? "bg-[#f9900f] text-white hover:bg-[#e07408]"
+                  : variant === "green"
+                    ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                    : variant === "sky"
+                      ? "bg-sky-600 text-white hover:bg-sky-700"
+                      : "bg-[#3a7ca5] text-white hover:bg-[#2f6688]",
             ].join(" ")}
           >
             <Icon className="size-4 shrink-0" aria-hidden />
@@ -487,6 +591,9 @@ export function AdminBookingLifecycleActions({
             : "—";
         announceSuccess(t("extend.successToast", { amount }));
       }
+      if (path === "documents") {
+        announceSuccess(t("documents.successToast"));
+      }
       setActiveDialog(null);
       setCancelDialogStep("details");
       router.refresh();
@@ -537,11 +644,16 @@ export function AdminBookingLifecycleActions({
     setActiveDialog("restore");
   }
 
+  const bookedViaKiosk = isKioskBooking(booking);
+  const showUpdateDocuments =
+    booking.status === "CONFIRMED" ||
+    booking.status === "PENDING_PAYMENT" ||
+    booking.status === "VEHICLE_HANDED_OVER";
   const showChangeVehicle = booking.status === "CONFIRMED" || booking.status === "PENDING_PAYMENT";
   const showReplaceVehicle = booking.status === "VEHICLE_HANDED_OVER" && Boolean(booking.vehicleUnitId);
   const showHandOver =
     booking.status === "CONFIRMED" &&
-    (Number(booking.totalDueOnline) <= 0 || booking.paymentStatus === "PAID");
+    (Number(booking.totalDueOnline) <= 0 || booking.paymentStatus === "PAID" || bookedViaKiosk);
   const showExtend =
     (booking.status === "CONFIRMED" || booking.status === "VEHICLE_HANDED_OVER") &&
     Boolean(booking.vehicleUnitId);
@@ -555,6 +667,7 @@ export function AdminBookingLifecycleActions({
     !showChangeVehicle &&
     !showReplaceVehicle &&
     !showHandOver &&
+    !showUpdateDocuments &&
     !showExtend &&
     !showCancel &&
     !showMarkReturned &&
@@ -580,124 +693,300 @@ export function AdminBookingLifecycleActions({
         </div>
       ) : null}
 
-      <h3 className="text-base font-bold text-slate-950">{t("title")}</h3>
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-base font-bold text-slate-950">{t("title")}</h3>
+        {bookedViaKiosk ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#0c2340] px-2.5 py-1 text-xs font-semibold text-white">
+            <MonitorSmartphone className="size-3.5" aria-hidden />
+            {t("kioskBadge")}
+          </span>
+        ) : null}
+      </div>
 
-      <LifecycleGuideline status={booking.status} t={t} />
+      {bookedViaKiosk ? (
+        <p className="mt-3 rounded-xl border border-[#0c2340]/15 bg-[#0c2340]/5 px-3 py-2 text-sm text-[#0c2340]">
+          {t("kioskBanner")}
+        </p>
+      ) : null}
+
+      <LifecycleGuideline status={booking.status} isKiosk={bookedViaKiosk} t={t} />
+
+      <KioskCounterChecklist booking={booking} t={t} />
 
       {readOnlyLifecycle ? (
         <p className="mt-4 text-sm text-slate-600">{t("readOnlyCompleted")}</p>
       ) : (
-        <div className="mt-4 space-y-3">
-          <p className="text-sm font-semibold text-slate-700">
-            {t("guidelines.availableActions")}
-          </p>
-          {showChangeVehicle ? (
-            <LifecycleActionCard
-              title={t("actions.changeVehicle")}
-              summary={t("guidelines.actions.changeVehicle.summary")}
-              effects={t("guidelines.actions.changeVehicle.effects")}
-              effectsLabel={t("guidelines.effectsLabel")}
-              icon={Bike}
-              onAction={() => {
-                setError(null);
-                setSuccessMessage(null);
-                setActiveDialog("changeVehicle");
-              }}
-            />
-          ) : null}
-          {showHandOver ? (
-            <LifecycleActionCard
-              title={t("actions.handOver")}
-              summary={t("guidelines.actions.handOver.summary")}
-              effects={t("guidelines.actions.handOver.effects")}
-              effectsLabel={t("guidelines.effectsLabel")}
-              icon={KeyRound}
-              onAction={() => {
-                setError(null);
-                setHandOverForm((current) => ({
-                  ...current,
-                  paymentReceivedAmount: booking.totalDueLater + booking.totalDueOnline,
-                  securityDepositCollectedAmount: booking.depositAmount,
-                  handoverDateTime: toLocalDateTimeInputValue(null),
-                  vehicleUnitId:
-                    booking.vehicleUnitId ??
-                    selectableUnits[0]?.id ??
-                    "",
-                }));
-                setActiveDialog("handOver");
-              }}
-            />
-          ) : null}
-          {showExtend ? (
-            <LifecycleActionCard
-              title={t("actions.extend")}
-              summary={t("guidelines.actions.extend.summary")}
-              effects={t("guidelines.actions.extend.effects")}
-              effectsLabel={t("guidelines.effectsLabel")}
-              icon={CalendarPlus}
-              onAction={() => {
-                setError(null);
-                setActiveDialog("extend");
-              }}
-            />
-          ) : null}
-          {showReplaceVehicle ? (
-            <LifecycleActionCard
-              title={t("actions.replaceVehicle")}
-              summary={t("guidelines.actions.replaceVehicle.summary")}
-              effects={t("guidelines.actions.replaceVehicle.effects")}
-              effectsLabel={t("guidelines.effectsLabel")}
-              icon={ArrowRightLeft}
-              variant="orange"
-              onAction={() => {
-                setError(null);
-                setActiveDialog("replaceVehicle");
-              }}
-            />
-          ) : null}
-          {showMarkReturned ? (
-            <LifecycleActionCard
-              title={t("actions.markReturned")}
-              summary={t("guidelines.actions.markReturned.summary")}
-              effects={t("guidelines.actions.markReturned.effects")}
-              effectsLabel={t("guidelines.effectsLabel")}
-              icon={RotateCcw}
-              variant="orange"
-              onAction={() => setActiveDialog("markReturned")}
-            />
-          ) : null}
-          {showComplete ? (
-            <LifecycleActionCard
-              title={t("actions.complete")}
-              summary={t("guidelines.actions.complete.summary")}
-              effects={t("guidelines.actions.complete.effects")}
-              effectsLabel={t("guidelines.effectsLabel")}
-              icon={CheckCircle2}
-              variant="sky"
-              onAction={() => setActiveDialog("complete")}
-            />
-          ) : null}
-          {showRestore ? (
-            <LifecycleActionCard
-              title={t("actions.restore")}
-              summary={t("guidelines.actions.restore.summary")}
-              effects={t("guidelines.actions.restore.effects")}
-              effectsLabel={t("guidelines.effectsLabel")}
-              icon={Undo2}
-              onAction={openRestoreDialog}
-            />
-          ) : null}
-          {showCancel ? (
-            <LifecycleActionCard
-              title={t("actions.cancel")}
-              summary={t("guidelines.actions.cancel.summary")}
-              effects={t("guidelines.actions.cancel.effects")}
-              effectsLabel={t("guidelines.effectsLabel")}
-              icon={XCircle}
-              onAction={openCancelDialog}
-              variant="danger"
-            />
-          ) : null}
+        <div className="mt-4 space-y-6">
+          {(() => {
+            const processCards: Array<{
+              key: string;
+              node: ReactNode;
+            }> = [];
+
+            let step = 1;
+
+            // Required flow — numbered in order for this booking status.
+            if (showUpdateDocuments && (bookedViaKiosk || booking.status === "CONFIRMED")) {
+              const n = step;
+              step += 1;
+              processCards.push({
+                key: "updateDocuments",
+                node: (
+                  <LifecycleActionCard
+                    stepNumber={n}
+                    title={t("actions.updateDocuments")}
+                    summary={t("guidelines.actions.updateDocuments.summary")}
+                    effects={t("guidelines.actions.updateDocuments.effects")}
+                    effectsLabel={t("guidelines.effectsLabel")}
+                    icon={FileUp}
+                    variant="orange"
+                    onAction={() => {
+                      setError(null);
+                      setSuccessMessage(null);
+                      setActiveDialog("updateDocuments");
+                    }}
+                  />
+                ),
+              });
+            }
+
+            if (showHandOver) {
+              const n = step;
+              step += 1;
+              processCards.push({
+                key: "handOver",
+                node: (
+                  <LifecycleActionCard
+                    stepNumber={n}
+                    title={bookedViaKiosk ? t("actions.handOverKiosk") : t("actions.handOver")}
+                    summary={
+                      bookedViaKiosk
+                        ? t("guidelines.actions.handOverKiosk.summary")
+                        : t("guidelines.actions.handOver.summary")
+                    }
+                    effects={
+                      bookedViaKiosk
+                        ? t("guidelines.actions.handOverKiosk.effects")
+                        : t("guidelines.actions.handOver.effects")
+                    }
+                    effectsLabel={t("guidelines.effectsLabel")}
+                    icon={KeyRound}
+                    variant="green"
+                    onAction={() => {
+                      setError(null);
+                      setHandOverForm((current) => ({
+                        ...current,
+                        paymentReceivedAmount: booking.totalDueLater + booking.totalDueOnline,
+                        securityDepositCollectedAmount: booking.depositAmount,
+                        paymentConfirmed: bookedViaKiosk ? true : current.paymentConfirmed,
+                        depositCollectedConfirmed: bookedViaKiosk
+                          ? true
+                          : current.depositCollectedConfirmed,
+                        handoverDateTime: toLocalDateTimeInputValue(null),
+                        vehicleUnitId:
+                          booking.vehicleUnitId ?? selectableUnits[0]?.id ?? "",
+                      }));
+                      setActiveDialog("handOver");
+                    }}
+                  />
+                ),
+              });
+            }
+
+            if (showMarkReturned) {
+              const n = step;
+              step += 1;
+              processCards.push({
+                key: "markReturned",
+                node: (
+                  <LifecycleActionCard
+                    stepNumber={n}
+                    title={t("actions.markReturned")}
+                    summary={t("guidelines.actions.markReturned.summary")}
+                    effects={t("guidelines.actions.markReturned.effects")}
+                    effectsLabel={t("guidelines.effectsLabel")}
+                    icon={RotateCcw}
+                    variant="orange"
+                    onAction={() => setActiveDialog("markReturned")}
+                  />
+                ),
+              });
+            }
+
+            if (showComplete) {
+              const n = step;
+              step += 1;
+              processCards.push({
+                key: "complete",
+                node: (
+                  <LifecycleActionCard
+                    stepNumber={n}
+                    title={t("actions.complete")}
+                    summary={t("guidelines.actions.complete.summary")}
+                    effects={t("guidelines.actions.complete.effects")}
+                    effectsLabel={t("guidelines.effectsLabel")}
+                    icon={CheckCircle2}
+                    variant="sky"
+                    onAction={() => setActiveDialog("complete")}
+                  />
+                ),
+              });
+            }
+
+            if (showRestore) {
+              const n = step;
+              processCards.push({
+                key: "restore",
+                node: (
+                  <LifecycleActionCard
+                    stepNumber={n}
+                    title={t("actions.restore")}
+                    summary={t("guidelines.actions.restore.summary")}
+                    effects={t("guidelines.actions.restore.effects")}
+                    effectsLabel={t("guidelines.effectsLabel")}
+                    icon={Undo2}
+                    onAction={openRestoreDialog}
+                  />
+                ),
+              });
+            }
+
+            const adminCards: Array<{ key: string; node: ReactNode }> = [];
+
+            if (showChangeVehicle) {
+              adminCards.push({
+                key: "changeVehicle",
+                node: (
+                  <LifecycleActionCard
+                    title={t("actions.changeVehicle")}
+                    summary={t("guidelines.actions.changeVehicle.summary")}
+                    effects={t("guidelines.actions.changeVehicle.effects")}
+                    effectsLabel={t("guidelines.effectsLabel")}
+                    icon={Bike}
+                    onAction={() => {
+                      setError(null);
+                      setSuccessMessage(null);
+                      setActiveDialog("changeVehicle");
+                    }}
+                  />
+                ),
+              });
+            }
+
+            if (showExtend) {
+              adminCards.push({
+                key: "extend",
+                node: (
+                  <LifecycleActionCard
+                    title={t("actions.extend")}
+                    summary={t("guidelines.actions.extend.summary")}
+                    effects={t("guidelines.actions.extend.effects")}
+                    effectsLabel={t("guidelines.effectsLabel")}
+                    icon={CalendarPlus}
+                    onAction={() => {
+                      setError(null);
+                      setActiveDialog("extend");
+                    }}
+                  />
+                ),
+              });
+            }
+
+            if (showReplaceVehicle) {
+              adminCards.push({
+                key: "replaceVehicle",
+                node: (
+                  <LifecycleActionCard
+                    title={t("actions.replaceVehicle")}
+                    summary={t("guidelines.actions.replaceVehicle.summary")}
+                    effects={t("guidelines.actions.replaceVehicle.effects")}
+                    effectsLabel={t("guidelines.effectsLabel")}
+                    icon={ArrowRightLeft}
+                    variant="orange"
+                    onAction={() => {
+                      setError(null);
+                      setActiveDialog("replaceVehicle");
+                    }}
+                  />
+                ),
+              });
+            }
+
+            if (showCancel) {
+              adminCards.push({
+                key: "cancel",
+                node: (
+                  <LifecycleActionCard
+                    title={t("actions.cancel")}
+                    summary={t("guidelines.actions.cancel.summary")}
+                    effects={t("guidelines.actions.cancel.effects")}
+                    effectsLabel={t("guidelines.effectsLabel")}
+                    icon={XCircle}
+                    onAction={openCancelDialog}
+                    variant="danger"
+                  />
+                ),
+              });
+            }
+
+            // Documents still available after handover (admin catch-up), but not as a numbered process step.
+            if (showUpdateDocuments && !bookedViaKiosk && booking.status !== "CONFIRMED") {
+              adminCards.unshift({
+                key: "updateDocumentsAdmin",
+                node: (
+                  <LifecycleActionCard
+                    title={t("actions.updateDocuments")}
+                    summary={t("guidelines.actions.updateDocuments.summary")}
+                    effects={t("guidelines.actions.updateDocuments.effects")}
+                    effectsLabel={t("guidelines.effectsLabel")}
+                    icon={FileUp}
+                    variant="orange"
+                    onAction={() => {
+                      setError(null);
+                      setSuccessMessage(null);
+                      setActiveDialog("updateDocuments");
+                    }}
+                  />
+                ),
+              });
+            }
+
+            return (
+              <>
+                {processCards.length > 0 ? (
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">
+                        {t("guidelines.availableActions")}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {t("guidelines.processOrderHint")}
+                      </p>
+                    </div>
+                    {processCards.map((card) => (
+                      <div key={card.key}>{card.node}</div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {adminCards.length > 0 ? (
+                  <div className="space-y-3 border-t border-slate-200 pt-5">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">
+                        {t("guidelines.adminActions")}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {t("guidelines.adminActionsHint")}
+                      </p>
+                    </div>
+                    {adminCards.map((card) => (
+                      <div key={card.key}>{card.node}</div>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            );
+          })()}
         </div>
       )}
 
@@ -709,6 +998,18 @@ export function AdminBookingLifecycleActions({
           onClose={closeLifecycleDialog}
           onConfirm={(input) => {
             void submitAction("change-vehicle", input);
+          }}
+        />
+      ) : null}
+
+      {activeDialog === "updateDocuments" ? (
+        <AdminBookingDocumentsDialog
+          booking={booking}
+          isSubmitting={isSubmitting}
+          error={error}
+          onClose={closeLifecycleDialog}
+          onConfirm={(input) => {
+            void submitAction("documents", input);
           }}
         />
       ) : null}

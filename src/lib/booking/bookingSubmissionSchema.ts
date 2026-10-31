@@ -33,7 +33,12 @@ export const CDW_OPTIONS = [
 /** Sizes accepted on new booking submissions. Historical Small (`S`) is stored but not bookable. */
 export const HELMET_SIZES = BOOKABLE_HELMET_SIZES;
 export const DEPOSIT_METHODS = ["ONLINE", "IN_PERSON"] as const;
-export const PAYMENT_MODES = ["STRIPE", "ALREADY_PAID"] as const;
+/**
+ * STRIPE — online checkout (deposit must be ONLINE).
+ * ALREADY_PAID — hotel/offline proof path; marks payment + deposit collected.
+ * PAY_AT_COUNTER — kiosk / in-shop settlement; confirms booking, payment + deposit remain PENDING.
+ */
+export const PAYMENT_MODES = ["STRIPE", "ALREADY_PAID", "PAY_AT_COUNTER"] as const;
 
 const EMPTY_TO_NULL_TEXT = z.preprocess(
   (value) => {
@@ -320,6 +325,18 @@ export const bookingSubmissionSchema = z
           }
           return parsed.toISOString();
         }, z.string().datetime().nullable()),
+        /** Optional channel marker (e.g. "kiosk", "web"). Stored on Booking.consentSource. */
+        consentSource: z
+          .preprocess((value) => {
+            if (value === undefined || value === null) {
+              return undefined;
+            }
+            if (typeof value !== "string") {
+              return value;
+            }
+            const trimmed = value.trim();
+            return trimmed.length > 0 ? trimmed : undefined;
+          }, z.string().min(1).max(40).optional()),
       })
       .strict(),
   })
@@ -342,12 +359,23 @@ export const bookingSubmissionSchema = z
     }
 
     // Standard Stripe bookings must collect the security deposit online.
-    // ALREADY_PAID keeps offline / IN_PERSON deposit semantics.
+    // ALREADY_PAID and PAY_AT_COUNTER keep offline / IN_PERSON deposit semantics.
     if (payload.payment.mode === "STRIPE" && payload.deposit.depositMethod !== "ONLINE") {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["deposit", "depositMethod"],
         message: "Security deposit must be paid online for standard Stripe bookings",
+      });
+    }
+
+    if (
+      payload.payment.mode === "PAY_AT_COUNTER" &&
+      payload.deposit.depositMethod !== "IN_PERSON"
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["deposit", "depositMethod"],
+        message: "Pay-at-counter bookings must use in-person security deposit collection",
       });
     }
 

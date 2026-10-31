@@ -431,13 +431,15 @@ function mapBookingCreateData(
   termsVersionId: string | null,
 ): Prisma.BookingUncheckedCreateInput {
   const isAlreadyPaid = payload.payment.mode === "ALREADY_PAID";
-  const requiresOnlinePayment = !isAlreadyPaid && pricing.breakdown.totalDueOnline > 0;
+  const isPayAtCounter = payload.payment.mode === "PAY_AT_COUNTER";
+  const requiresOnlinePayment =
+    !isAlreadyPaid && !isPayAtCounter && pricing.breakdown.totalDueOnline > 0;
   const depositAmount = pricing.breakdown.depositAmount;
   const payableAmount = pricing.breakdown.subtotal + depositAmount;
 
   return {
     bookingReference,
-    // Already-paid hotel bookings are confirmed immediately.
+    // Already-paid hotel bookings and pay-at-counter kiosk bookings are confirmed immediately.
     // Online Stripe checkout soft-reserves until payment succeeds.
     status: requiresOnlinePayment ? "PENDING_PAYMENT" : "CONFIRMED",
     paymentStatus: isAlreadyPaid ? "PAID" : "PENDING",
@@ -516,11 +518,17 @@ function mapBookingCreateData(
     deliveryTotal: pricing.breakdown.deliveryTotal,
     subtotal: pricing.breakdown.subtotal,
     depositAmount,
-    depositMethod: isAlreadyPaid ? "IN_PERSON" : payload.deposit.depositMethod,
-    totalDueOnline: isAlreadyPaid ? 0 : pricing.breakdown.totalDueOnline,
-    totalDueLater: isAlreadyPaid ? 0 : pricing.breakdown.totalDueLater,
+    depositMethod: isAlreadyPaid || isPayAtCounter ? "IN_PERSON" : payload.deposit.depositMethod,
+    totalDueOnline: isAlreadyPaid || isPayAtCounter ? 0 : pricing.breakdown.totalDueOnline,
+    // Kiosk / counter settlement: full rental + deposit due at the shop.
+    totalDueLater: isAlreadyPaid
+      ? 0
+      : isPayAtCounter
+        ? payableAmount
+        : pricing.breakdown.totalDueLater,
     termsAccepted: payload.consent.termsAccepted,
     termsAcceptedAt: payload.consent.termsAcceptedAt,
+    consentSource: payload.consent.consentSource,
     idempotencyKey: payload.idempotencyKey,
   };
 }
@@ -749,15 +757,27 @@ async function createBookingWithUniqueReference(
               const charges = chargesAfterLoyalty(pricing.breakdown.subtotal, redemption.amountEur);
               const depositAmount = pricing.breakdown.depositAmount;
               const isAlreadyPaid = payload.payment.mode === "ALREADY_PAID";
-              const depositOnline = !isAlreadyPaid && payload.deposit.depositMethod === "ONLINE";
-              const totalDueOnline = isAlreadyPaid
+              const isPayAtCounter = payload.payment.mode === "PAY_AT_COUNTER";
+              const depositOnline =
+                !isAlreadyPaid && !isPayAtCounter && payload.deposit.depositMethod === "ONLINE";
+              const totalDueOnline =
+                isAlreadyPaid || isPayAtCounter
+                  ? 0
+                  : depositOnline
+                    ? roundPricingAmount(charges + depositAmount)
+                    : charges;
+              const totalDueLater = isAlreadyPaid
                 ? 0
-                : depositOnline
+                : isPayAtCounter
                   ? roundPricingAmount(charges + depositAmount)
-                  : charges;
-              const totalDueLater = isAlreadyPaid ? 0 : depositOnline ? 0 : depositAmount;
+                  : depositOnline
+                    ? 0
+                    : depositAmount;
               const loyaltySettlesOnlinePayment =
-                !isAlreadyPaid && createdBooking.status === "PENDING_PAYMENT" && totalDueOnline <= 0;
+                !isAlreadyPaid &&
+                !isPayAtCounter &&
+                createdBooking.status === "PENDING_PAYMENT" &&
+                totalDueOnline <= 0;
 
               booking = await tx.booking.update({
                 where: { id: createdBooking.id },
@@ -1014,7 +1034,11 @@ export async function submitBooking(payload: BookingSubmissionInput): Promise<Su
     typeof booking.totalDueOnline === "number"
       ? booking.totalDueOnline
       : booking.totalDueOnline.toNumber();
-  const totalDueOnline = validation.data.payment.mode === "ALREADY_PAID" ? 0 : storedTotalDueOnline;
+  const totalDueOnline =
+    validation.data.payment.mode === "ALREADY_PAID" ||
+    validation.data.payment.mode === "PAY_AT_COUNTER"
+      ? 0
+      : storedTotalDueOnline;
 
   // Only send confirmation email immediately when no online payment is required.
   // When Stripe payment is involved, the webhook or success-page verifier
