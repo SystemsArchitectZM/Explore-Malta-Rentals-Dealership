@@ -50,7 +50,11 @@ export function VehicleDetailsStep() {
             {formatVehicleTypeLabel(vehicle.apiVehicleType)}
             {vehicle.engineCc ? ` · ${vehicle.engineCc}cc` : ""}
           </p>
-          {vehicle.shortDescription ? (
+          {vehicle.description ? (
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-600">
+              {vehicle.description}
+            </p>
+          ) : vehicle.shortDescription ? (
             <p className="mt-2 text-sm text-slate-600">{vehicle.shortDescription}</p>
           ) : null}
           <p className="mt-4 text-2xl font-bold tabular-nums text-[#f9900f]">

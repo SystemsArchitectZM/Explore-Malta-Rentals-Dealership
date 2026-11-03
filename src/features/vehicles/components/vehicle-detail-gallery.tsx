@@ -10,6 +10,8 @@ type VehicleDetailGalleryProps = Readonly<{
   name: string;
   /** Full-resolution image URLs. May be empty — fallback is shown automatically. */
   images: readonly string[];
+  /** Override lightbox stacking when gallery is nested inside another modal. */
+  lightboxZClassName?: string;
 }>;
 
 /* ─────────────────────────── shared styling ─────────────────── */
@@ -33,11 +35,13 @@ function ModalGallery({
   name,
   startIndex,
   onClose,
+  lightboxZClassName = "z-[200]",
 }: {
   images: readonly string[];
   name: string;
   startIndex: number;
   onClose: () => void;
+  lightboxZClassName?: string;
 }) {
   const [current, setCurrent] = useState(startIndex);
 
@@ -52,14 +56,18 @@ function ModalGallery({
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        e.stopImmediatePropagation();
+        onClose();
+        return;
+      }
       if (e.key === "ArrowLeft") prev();
       if (e.key === "ArrowRight") next();
     };
-    document.addEventListener("keydown", handler);
+    document.addEventListener("keydown", handler, true);
     document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("keydown", handler);
+      document.removeEventListener("keydown", handler, true);
       document.body.style.overflow = "";
     };
   }, [onClose, prev, next]);
@@ -71,7 +79,7 @@ function ModalGallery({
       role="dialog"
       aria-modal
       aria-label={`${name} — full gallery`}
-      className="grain fixed inset-0 z-[200] flex flex-col bg-[color-mix(in_srgb,var(--surface-inverse)_95%,transparent)] backdrop-blur-md"
+      className={`grain fixed inset-0 ${lightboxZClassName} flex flex-col bg-[color-mix(in_srgb,var(--surface-inverse)_95%,transparent)] backdrop-blur-md`}
     >
       {/* header */}
       <div className="flex shrink-0 items-center justify-between border-b border-[var(--line-inverse)] px-4 py-3 text-white/70">
@@ -164,7 +172,11 @@ function ModalGallery({
 
 /* ─────────────────────────── main export ────────────────────── */
 
-export function VehicleDetailGallery({ name, images }: VehicleDetailGalleryProps) {
+export function VehicleDetailGallery({
+  name,
+  images,
+  lightboxZClassName,
+}: VehicleDetailGalleryProps) {
   const safeImages = useMemo(() => images ?? [], [images]);
   const [activeIdx, setActiveIdx] = useState(0);
   const [mainLoaded, setMainLoaded] = useState(false);
@@ -370,6 +382,7 @@ export function VehicleDetailGallery({ name, images }: VehicleDetailGalleryProps
           name={name}
           startIndex={modalStart}
           onClose={() => setModalOpen(false)}
+          lightboxZClassName={lightboxZClassName}
         />
       ) : null}
     </>
