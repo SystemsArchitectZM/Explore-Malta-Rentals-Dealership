@@ -1,7 +1,11 @@
 "use client";
 
+import { useMemo } from "react";
+import { format, subYears } from "date-fns";
 import { UserRound } from "lucide-react";
+import { KioskDatePicker } from "@/features/kiosk/components/kiosk-date-picker";
 import { KioskPanel } from "@/features/kiosk/components/kiosk-panel";
+import { KioskSelect } from "@/features/kiosk/components/kiosk-select";
 import { useKioskBooking } from "@/features/kiosk/context/kiosk-booking-context";
 import {
   getAllowedLicenseCategories,
@@ -11,12 +15,19 @@ import {
 const fieldClass =
   "mt-2 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base focus:border-[#f9900f] focus:outline-none focus:ring-2 focus:ring-[#f9900f]/30";
 
+const todayIso = () => format(new Date(), "yyyy-MM-dd");
+const dobMinIso = () => format(subYears(new Date(), 100), "yyyy-MM-dd");
+
 export function CustomerStep() {
   const { state, updateSection } = useKioskBooking();
-  const licenseOptions = getAllowedLicenseCategories(
-    state.rental.vehicleType,
-    state.rental.vehicleId,
-    state.rental.engineCc,
+  const licenseOptions = useMemo(
+    () =>
+      getAllowedLicenseCategories(
+        state.rental.vehicleType,
+        state.rental.vehicleId,
+        state.rental.engineCc,
+      ).map((cat) => ({ value: cat, label: cat })),
+    [state.rental.engineCc, state.rental.vehicleId, state.rental.vehicleType],
   );
 
   return (
@@ -59,37 +70,32 @@ export function CustomerStep() {
             onChange={(e) => updateSection("customer", { nationality: e.target.value })}
           />
         </label>
-        <label>
-          <span className="text-sm font-medium text-slate-700">Date of birth</span>
-          <input
-            type="date"
-            className={fieldClass}
-            value={state.customer.dateOfBirth}
-            onChange={(e) => updateSection("customer", { dateOfBirth: e.target.value })}
-          />
-        </label>
-        <label className="sm:col-span-2">
-          <span className="text-sm font-medium text-slate-700">Driving license category</span>
-          <select
-            className={fieldClass}
+        <KioskDatePicker
+          id="kiosk-customer-dob"
+          label="Date of birth"
+          value={state.customer.dateOfBirth}
+          min={dobMinIso()}
+          max={todayIso()}
+          placeholder="Select date of birth"
+          yearDropdown
+          size="default"
+          onChange={(next) => updateSection("customer", { dateOfBirth: next })}
+        />
+        <div className="sm:col-span-2">
+          <KioskSelect
+            id="kiosk-customer-license"
+            label="Driving license category"
             value={state.customer.licenseCategory}
-            onChange={(e) =>
+            options={licenseOptions}
+            placeholder="Select category"
+            hint={getLicenseCategoryHint(state.rental.vehicleType, state.rental.engineCc)}
+            onChange={(next) =>
               updateSection("customer", {
-                licenseCategory: e.target.value as typeof state.customer.licenseCategory,
+                licenseCategory: next as typeof state.customer.licenseCategory,
               })
             }
-          >
-            <option value="">Select category</option>
-            {licenseOptions.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-xs text-slate-500">
-            {getLicenseCategoryHint(state.rental.vehicleType, state.rental.engineCc)}
-          </p>
-        </label>
+          />
+        </div>
       </div>
 
       <div className="mt-6 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">

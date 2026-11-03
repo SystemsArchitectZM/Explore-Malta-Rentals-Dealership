@@ -5,7 +5,7 @@ import { Check, CarFront } from "lucide-react";
 import { KioskPanel } from "@/features/kiosk/components/kiosk-panel";
 import { useKioskBooking } from "@/features/kiosk/context/kiosk-booking-context";
 import { colorsMatch } from "@/features/vehicles/lib/vehicle-color";
-import { formatVehicleTypeLabel } from "@/features/vehicles/data/vehicles";
+import { formatVehicleTypeLabel, isApiVehicleType } from "@/features/vehicles/data/vehicles";
 import { getBookingPricingBreakdown } from "@/features/booking-flow/lib/pricing";
 import { formatEur } from "@/lib/pricing/calculate-booking-price";
 
@@ -13,18 +13,32 @@ export function VehicleDetailsStep() {
   const { state, availableVehicles, selectedVehicleAvailableColors, updateSection, reservationHoldError } =
     useKioskBooking();
 
-  const vehicle = availableVehicles.find((v) => v.id === state.rental.vehicleId);
-  const pricing = vehicle
-    ? getBookingPricingBreakdown(
-        vehicle.baseDailyRate,
-        state.rental.pickupDate,
-        state.rental.pickupTime,
-        state.rental.returnDate,
-        state.rental.returnTime,
-      )
-    : null;
+  const listedVehicle = availableVehicles.find((v) => v.id === state.rental.vehicleId);
+  const rental = state.rental;
+  const hasSelectedVehicle = Boolean(rental.vehicleId);
 
-  if (!vehicle) {
+  const displayName = listedVehicle?.name ?? rental.vehicleName;
+  const displayImage = listedVehicle?.mainImageUrl ?? rental.mainImageUrl;
+  const displayEngineCc = listedVehicle?.engineCc ?? rental.engineCc;
+  const displayType = listedVehicle?.apiVehicleType
+    ?? (isApiVehicleType(rental.vehicleType) ? rental.vehicleType : null);
+  const displayDescription = listedVehicle?.description ?? null;
+  const displayShortDescription =
+    listedVehicle?.shortDescription ?? rental.shortDescription ?? null;
+  const baseDailyRate = listedVehicle?.baseDailyRate ?? rental.baseDailyRate;
+
+  const pricing =
+    hasSelectedVehicle && baseDailyRate > 0
+      ? getBookingPricingBreakdown(
+          baseDailyRate,
+          rental.pickupDate,
+          rental.pickupTime,
+          rental.returnDate,
+          rental.returnTime,
+        )
+      : null;
+
+  if (!hasSelectedVehicle) {
     return (
       <KioskPanel title="Vehicle details" subtitle="Select a vehicle first.">
         <p className="text-slate-600">No vehicle selected.</p>
@@ -38,24 +52,28 @@ export function VehicleDetailsStep() {
       subtitle="Choose a colour if available, acknowledge the price, then continue to reserve this unit."
       icon={<CarFront className="h-6 w-6" aria-hidden />}
     >
+      {!listedVehicle ? (
+        <p className="mb-4 text-sm text-slate-500">Restoring vehicle details…</p>
+      ) : null}
+
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-slate-100">
-          {vehicle.mainImageUrl ? (
-            <Image src={vehicle.mainImageUrl} alt={vehicle.name} fill className="object-cover" sizes="50vw" />
+          {displayImage ? (
+            <Image src={displayImage} alt={displayName || "Vehicle"} fill className="object-cover" sizes="50vw" />
           ) : null}
         </div>
         <div>
-          <h3 className="text-2xl font-bold text-[#0c2340]">{vehicle.name}</h3>
+          <h3 className="text-2xl font-bold text-[#0c2340]">{displayName || "Selected vehicle"}</h3>
           <p className="text-slate-600">
-            {formatVehicleTypeLabel(vehicle.apiVehicleType)}
-            {vehicle.engineCc ? ` · ${vehicle.engineCc}cc` : ""}
+            {displayType ? formatVehicleTypeLabel(displayType) : rental.vehicleType}
+            {displayEngineCc ? ` · ${displayEngineCc}cc` : ""}
           </p>
-          {vehicle.description ? (
+          {displayDescription ? (
             <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-600">
-              {vehicle.description}
+              {displayDescription}
             </p>
-          ) : vehicle.shortDescription ? (
-            <p className="mt-2 text-sm text-slate-600">{vehicle.shortDescription}</p>
+          ) : displayShortDescription ? (
+            <p className="mt-2 text-sm text-slate-600">{displayShortDescription}</p>
           ) : null}
           <p className="mt-4 text-2xl font-bold tabular-nums text-[#f9900f]">
             {pricing ? formatEur(pricing.totalEur) : "—"}{" "}

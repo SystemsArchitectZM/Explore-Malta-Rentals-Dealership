@@ -713,6 +713,33 @@ body {
   height: 1.25rem;
 }
 
+.rdp-root.kiosk-day-picker .rdp-dropdowns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.rdp-root.kiosk-day-picker .rdp-dropdown_root {
+  position: relative;
+}
+
+.rdp-root.kiosk-day-picker .rdp-dropdown {
+  min-height: 2.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  padding: 0.35rem 2rem 0.35rem 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #0c2340;
+}
+
+.rdp-root.kiosk-day-picker .rdp-dropdown:focus-visible {
+  outline: 2px solid #f9900f;
+  outline-offset: 2px;
+}
+
 /* Final conversion CTA — editorial dark layout */
 .final-cta-editorial {
   color: #fff;

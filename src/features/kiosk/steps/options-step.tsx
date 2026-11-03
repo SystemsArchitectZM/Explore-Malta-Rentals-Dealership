@@ -1,8 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
+import { format, subYears } from "date-fns";
 import { Settings2 } from "lucide-react";
+import { KioskDatePicker } from "@/features/kiosk/components/kiosk-date-picker";
 import { KioskPanel } from "@/features/kiosk/components/kiosk-panel";
+import { KioskSelect } from "@/features/kiosk/components/kiosk-select";
 import { useKioskBooking } from "@/features/kiosk/context/kiosk-booking-context";
 import { vehicleTypeNeedsHelmetFlow } from "@/features/booking-flow/lib/helmet-rental";
 import {
@@ -30,6 +33,14 @@ const optionIdle = "border-slate-200 bg-white";
 const checkboxRowClass =
   "flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 text-[#0c2340]";
 
+const HELMET_SIZE_OPTIONS = BOOKABLE_HELMET_SIZES.map((size) => ({
+  value: size,
+  label: size,
+}));
+
+const todayIso = () => format(new Date(), "yyyy-MM-dd");
+const dobMinIso = () => format(subYears(new Date(), 100), "yyyy-MM-dd");
+
 export function OptionsStep() {
   const { state, updateSection } = useKioskBooking();
   const needsHelmet = vehicleTypeNeedsHelmetFlow(state.rental.vehicleType);
@@ -46,7 +57,7 @@ export function OptionsStep() {
         state.rental.vehicleType,
         state.rental.vehicleId,
         state.rental.engineCc,
-      ),
+      ).map((cat) => ({ value: cat, label: cat })),
     [state.rental.engineCc, state.rental.vehicleId, state.rental.vehicleType],
   );
 
@@ -95,36 +106,22 @@ export function OptionsStep() {
         {needsHelmet ? (
           <section className="grid gap-4 sm:grid-cols-2">
             <h3 className="sm:col-span-2 text-lg font-bold text-[#0c2340]">Helmet sizes</h3>
-            <label className="block">
-              <span className={labelCaptionClass}>Helmet 1</span>
-              <select
-                className={fieldClass}
-                value={state.addons.helmetSize1}
-                onChange={(e) => updateSection("addons", { helmetSize1: e.target.value })}
-              >
-                <option value="">Select size</option>
-                {BOOKABLE_HELMET_SIZES.map((size) => (
-                  <option key={size} value={size}>
-                    {size}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className={labelCaptionClass}>Helmet 2</span>
-              <select
-                className={fieldClass}
-                value={state.addons.helmetSize2}
-                onChange={(e) => updateSection("addons", { helmetSize2: e.target.value })}
-              >
-                <option value="">Select size</option>
-                {BOOKABLE_HELMET_SIZES.map((size) => (
-                  <option key={size} value={size}>
-                    {size}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <KioskSelect
+              id="kiosk-helmet-1"
+              label="Helmet 1"
+              value={state.addons.helmetSize1}
+              options={HELMET_SIZE_OPTIONS}
+              placeholder="Select size"
+              onChange={(next) => updateSection("addons", { helmetSize1: next })}
+            />
+            <KioskSelect
+              id="kiosk-helmet-2"
+              label="Helmet 2"
+              value={state.addons.helmetSize2}
+              options={HELMET_SIZE_OPTIONS}
+              placeholder="Select size"
+              onChange={(next) => updateSection("addons", { helmetSize2: next })}
+            />
           </section>
         ) : null}
 
@@ -185,37 +182,32 @@ export function OptionsStep() {
                   onChange={(e) => updateSection("additionalDriver", { nationality: e.target.value })}
                 />
               </label>
-              <label className="block">
-                <span className={labelCaptionClass}>Date of birth</span>
-                <input
-                  type="date"
-                  className={fieldClass}
-                  value={state.additionalDriver.dateOfBirth}
-                  onChange={(e) => updateSection("additionalDriver", { dateOfBirth: e.target.value })}
-                />
-              </label>
-              <label className="block sm:col-span-2">
-                <span className={labelCaptionClass}>License category</span>
-                <select
-                  className={fieldClass}
+              <KioskDatePicker
+                id="kiosk-additional-dob"
+                label="Date of birth"
+                value={state.additionalDriver.dateOfBirth}
+                min={dobMinIso()}
+                max={todayIso()}
+                placeholder="Select date of birth"
+                yearDropdown
+                size="default"
+                onChange={(next) => updateSection("additionalDriver", { dateOfBirth: next })}
+              />
+              <div className="sm:col-span-2">
+                <KioskSelect
+                  id="kiosk-additional-license"
+                  label="License category"
                   value={state.additionalDriver.licenseCategory}
-                  onChange={(e) =>
+                  options={licenseOptions}
+                  placeholder="Select"
+                  hint={getLicenseCategoryHint(state.rental.vehicleType, state.rental.engineCc)}
+                  onChange={(next) =>
                     updateSection("additionalDriver", {
-                      licenseCategory: e.target.value as typeof state.additionalDriver.licenseCategory,
+                      licenseCategory: next as typeof state.additionalDriver.licenseCategory,
                     })
                   }
-                >
-                  <option value="">Select</option>
-                  {licenseOptions.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-slate-500">
-                  {getLicenseCategoryHint(state.rental.vehicleType, state.rental.engineCc)}
-                </p>
-              </label>
+                />
+              </div>
             </div>
           ) : null}
         </section>

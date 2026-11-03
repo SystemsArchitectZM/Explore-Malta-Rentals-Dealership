@@ -38,6 +38,7 @@ import {
 } from "@/features/kiosk/lib/types";
 import { validateKioskStep } from "@/features/kiosk/lib/validation";
 import { calculateBookingPrice } from "@/lib/pricing/calculate-booking-price";
+import { fetchVehicles } from "@/features/vehicles/lib/vehicles-api";
 
 function holdMatchesRental(hold: ReservationHoldState, rental: KioskBookingState["rental"]): boolean {
   return (
@@ -94,7 +95,7 @@ export function KioskBookingProvider({ children }: PropsWithChildren) {
   const [isCreatingHold, setIsCreatingHold] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loyaltyCreditPreview, setLoyaltyCreditPreview] = useState(0);
-  const hydratedRef = useRef(false);
+  const [sessionHydrated, setSessionHydrated] = useState(false);
   const idempotencyKeyRef = useRef<string | null>(null);
   const checkoutHoldExtendedForRef = useRef<string | null>(null);
 
@@ -107,15 +108,69 @@ export function KioskBookingProvider({ children }: PropsWithChildren) {
       setStepIndex(stored.stepIndex);
       setReservationHold(stored.reservationHold);
     }
-    hydratedRef.current = true;
+    setSessionHydrated(true);
   }, []);
 
   useEffect(() => {
-    if (!hydratedRef.current) {
+    if (!sessionHydrated) {
       return;
     }
     saveKioskSession({ state, stepIndex, reservationHold });
-  }, [state, stepIndex, reservationHold]);
+  }, [sessionHydrated, state, stepIndex, reservationHold]);
+
+  // availableVehicles is in-memory only — restore it after refresh / remount so later
+  // steps (especially vehicle details) still resolve the selected vehicle.
+  useEffect(() => {
+    if (!sessionHydrated) {
+      return;
+    }
+    if (availableVehicles.length > 0) {
+      return;
+    }
+
+    const { pickupDate, pickupTime, returnDate, returnTime, vehicleId } = state.rental;
+    if (!pickupDate.trim() || !pickupTime.trim() || !returnDate.trim() || !returnTime.trim()) {
+      return;
+    }
+
+    const controller = new AbortController();
+    void fetchVehicles(controller.signal, {
+      pickupDate: pickupDate.trim(),
+      pickupTime: pickupTime.trim(),
+      returnDate: returnDate.trim(),
+      returnTime: returnTime.trim(),
+      sessionKey: reservationHold.sessionKey?.trim() || undefined,
+    })
+      .then((vehicles) => {
+        if (controller.signal.aborted) return;
+        const bookable = vehicles.filter(
+          (vehicle) =>
+            vehicle.rentalWindowStatus === "available" ||
+            vehicle.rentalWindowStatus === "reserved_you",
+        );
+        const selected =
+          vehicleId != null ? vehicles.find((vehicle) => vehicle.id === vehicleId) : null;
+        if (selected && !bookable.some((vehicle) => vehicle.id === selected.id)) {
+          setAvailableVehicles([...bookable, selected]);
+          return;
+        }
+        setAvailableVehicles(bookable);
+      })
+      .catch(() => {
+        // Keep empty list; steps already handle missing vehicles.
+      });
+
+    return () => controller.abort();
+  }, [
+    sessionHydrated,
+    availableVehicles.length,
+    reservationHold.sessionKey,
+    state.rental.pickupDate,
+    state.rental.pickupTime,
+    state.rental.returnDate,
+    state.rental.returnTime,
+    state.rental.vehicleId,
+  ]);
 
   const updateSection = useCallback<KioskBookingContextValue["updateSection"]>((section, value) => {
     setStateInternal((prev) => ({
