@@ -102,11 +102,10 @@ export function mapKioskStateToSubmission(
         : false,
     },
     deposit: {
-      depositMethod: "IN_PERSON",
+      depositMethod: state.payment.mode === "stripe" ? "ONLINE" : "IN_PERSON",
     },
     payment: {
-      // Kiosk counter settlement — same create path as public, without Stripe/ALREADY_PAID.
-      mode: "PAY_AT_COUNTER",
+      mode: state.payment.mode === "stripe" ? "STRIPE" : "PAY_AT_COUNTER",
       proofPath: null,
     },
     consent: {

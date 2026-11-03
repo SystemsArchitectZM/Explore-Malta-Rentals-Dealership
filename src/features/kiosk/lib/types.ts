@@ -60,6 +60,18 @@ export type KioskBookingState = {
     partnerName: string | null;
     error: string | null;
   };
+  /** Deposit settlement chosen on the review step. */
+  deposit: {
+    depositMethod: "online" | "in_person";
+  };
+  /**
+   * Kiosk payment channel.
+   * - stripe: pay booking charges + security deposit online (same as web).
+   * - pay_at_counter: settle everything at the shop (no Stripe).
+   */
+  payment: {
+    mode: "stripe" | "pay_at_counter";
+  };
   consent: {
     termsAccepted: boolean;
     termsAcceptedAt: string;
@@ -72,6 +84,9 @@ export type KioskBookingState = {
     depositAmount: number | null;
     loyaltyCreditAmount: number | null;
     dueAtCounter: number | null;
+    /** Amount redirected to Stripe when payment.mode is stripe; otherwise 0. */
+    amountPaidOnline: number | null;
+    paymentMode: "stripe" | "pay_at_counter" | null;
   };
 };
 
@@ -133,6 +148,12 @@ export const INITIAL_KIOSK_BOOKING_STATE: KioskBookingState = {
     partnerName: null,
     error: null,
   },
+  deposit: {
+    depositMethod: "in_person",
+  },
+  payment: {
+    mode: "pay_at_counter",
+  },
   consent: {
     termsAccepted: false,
     termsAcceptedAt: "",
@@ -144,5 +165,7 @@ export const INITIAL_KIOSK_BOOKING_STATE: KioskBookingState = {
     depositAmount: null,
     loyaltyCreditAmount: null,
     dueAtCounter: null,
+    amountPaidOnline: null,
+    paymentMode: null,
   },
 };

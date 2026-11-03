@@ -15,6 +15,7 @@ import { KioskBookingProvider, useKioskBooking } from "@/features/kiosk/context/
 
 function KioskBookingFlowInner() {
   const {
+    state,
     stepId,
     stepIndex,
     stepError,
@@ -43,7 +44,9 @@ function KioskBookingFlowInner() {
 
   const primaryLabel =
     stepId === "review"
-      ? "Submit booking"
+      ? state.payment.mode === "stripe"
+        ? "Pay & submit"
+        : "Submit booking"
       : stepId === "vehicles" || stepId === "vehicle_details"
         ? "Continue"
         : "Continue";

@@ -104,6 +104,8 @@ export async function downloadKioskBookingPdf(state: KioskBookingState): Promise
   const ref = dash(state.meta.bookingReference);
   const deposit = state.meta.depositAmount;
   const dueAtCounter = state.meta.dueAtCounter;
+  const amountPaidOnline = state.meta.amountPaidOnline;
+  const paidOnline = state.meta.paymentMode === "stripe";
   const loyalty = state.meta.loyaltyCreditAmount ?? 0;
   const subtotal = state.meta.subtotal;
 
@@ -133,7 +135,9 @@ export async function downloadKioskBookingPdf(state: KioskBookingState): Promise
   doc.setFontSize(10);
   doc.setTextColor(...SLATE);
   const subtitle = doc.splitTextToSize(
-    "Thank you — please complete payment and document checks at the counter.",
+    paidOnline
+      ? "Thank you — please complete document checks at the counter."
+      : "Thank you — please complete payment and document checks at the counter.",
     CONTENT_WIDTH,
   ) as string[];
   doc.text(subtitle, MARGIN_X, y);
@@ -151,13 +155,21 @@ export async function downloadKioskBookingPdf(state: KioskBookingState): Promise
   doc.text(ref, MARGIN_X, y);
   y += 10;
 
-  const statusLines: string[] = [
-    "Booking status: confirmed / reserved for your dates.",
-    dueAtCounter != null
+  const paymentLine = paidOnline
+    ? amountPaidOnline != null && amountPaidOnline > 0
+      ? `Payment status: paid online — ${formatEur(amountPaidOnline)} charged via Stripe${
+          deposit != null ? ` (includes ${formatEur(deposit)} security deposit)` : ""
+        }.`
+      : "Payment status: settled online."
+    : dueAtCounter != null
       ? `Payment status: pending — pay ${formatEur(dueAtCounter)} at the counter${
           deposit != null ? ` (includes ${formatEur(deposit)} security deposit)` : ""
         }.`
-      : "Payment status: pending — pay rental + security deposit at the counter.",
+      : "Payment status: pending — pay rental + security deposit at the counter.";
+
+  const statusLines: string[] = [
+    "Booking status: confirmed / reserved for your dates.",
+    paymentLine,
   ];
   if (loyalty > 0) {
     statusLines.push(`Loyalty credit of ${formatEur(loyalty)} was applied to booking charges.`);

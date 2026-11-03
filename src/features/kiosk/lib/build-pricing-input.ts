@@ -39,7 +39,7 @@ export function buildKioskPricingInput(state: KioskBookingState): BookingPricing
       helmetSize2: state.addons.helmetSize2,
     },
     additionalDriver: { enabled: state.addons.additionalDriver },
-    deposit: { method: "in_person" },
+    deposit: { method: state.deposit.depositMethod },
     vehiclePricing: {
       baseDailyRate: state.rental.baseDailyRate,
       vehicleType: apiType as VehicleType,

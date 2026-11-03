@@ -27,6 +27,8 @@ function mergeKioskState(partial: Partial<KioskBookingState> | undefined): Kiosk
     },
     customer: { ...INITIAL_KIOSK_BOOKING_STATE.customer, ...source.customer },
     hotelCode: { ...INITIAL_KIOSK_BOOKING_STATE.hotelCode, ...source.hotelCode },
+    deposit: { ...INITIAL_KIOSK_BOOKING_STATE.deposit, ...source.deposit },
+    payment: { ...INITIAL_KIOSK_BOOKING_STATE.payment, ...source.payment },
     consent: { ...INITIAL_KIOSK_BOOKING_STATE.consent, ...source.consent },
     meta: { ...INITIAL_KIOSK_BOOKING_STATE.meta, ...source.meta },
   };

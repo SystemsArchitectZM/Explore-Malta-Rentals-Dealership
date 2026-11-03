@@ -375,10 +375,13 @@ export function KioskBookingProvider({ children }: PropsWithChildren) {
       const chargesAfterLoyalty = pricing
         ? Math.max(0, Math.round((pricing.subtotal - loyaltyCreditAmount) * 100) / 100)
         : null;
-      const dueAtCounter =
+      const payOnline = state.payment.mode === "stripe";
+      const totalLiability =
         pricing && chargesAfterLoyalty != null
           ? Math.round((chargesAfterLoyalty + pricing.depositAmount) * 100) / 100
           : null;
+      const dueAtCounter = payOnline ? 0 : totalLiability;
+      const amountPaidOnline = payOnline ? totalLiability : 0;
 
       const payload = mapKioskStateToSubmission(
         state,
@@ -402,12 +405,53 @@ export function KioskBookingProvider({ children }: PropsWithChildren) {
           depositAmount: pricing?.depositAmount ?? null,
           loyaltyCreditAmount: loyaltyCreditAmount > 0 ? loyaltyCreditAmount : 0,
           dueAtCounter,
+          amountPaidOnline,
+          paymentMode: state.payment.mode,
         },
         consent: {
           ...prev.consent,
           termsAcceptedAt: prev.consent.termsAcceptedAt || acceptedAt,
         },
       }));
+
+      // Online payment: redirect to Stripe Checkout (same path as public booking).
+      if (payOnline && result.totalDueOnline > 0) {
+        try {
+          const localeMatch = window.location.pathname.match(/^\/([a-z]{2})(?:\/|$)/i);
+          const locale = localeMatch?.[1] ?? "en";
+          const checkoutRes = await fetch("/api/stripe/checkout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              bookingReference: result.bookingReference,
+              locale,
+            }),
+          });
+          const checkoutData = (await checkoutRes.json()) as {
+            ok: boolean;
+            checkoutUrl?: string;
+            error?: string;
+          };
+
+          if (checkoutData.ok && checkoutData.checkoutUrl) {
+            window.location.href = checkoutData.checkoutUrl;
+            return { ok: true };
+          }
+
+          return {
+            ok: false,
+            message:
+              checkoutData.error ??
+              `Booking ${result.bookingReference} created but could not start payment. Please pay at the counter or contact support.`,
+          };
+        } catch {
+          return {
+            ok: false,
+            message: `Booking ${result.bookingReference} created but could not start payment. Please pay at the counter or contact support.`,
+          };
+        }
+      }
+
       setStepIndex(KIOSK_STEPS.findIndex((s) => s.id === "confirm"));
       idempotencyKeyRef.current = null;
       checkoutHoldExtendedForRef.current = null;

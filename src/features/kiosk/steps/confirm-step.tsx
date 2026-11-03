@@ -13,6 +13,8 @@ export function ConfirmStep() {
   const { state, resetSession } = useKioskBooking();
   const deposit = state.meta.depositAmount;
   const dueAtCounter = state.meta.dueAtCounter;
+  const amountPaidOnline = state.meta.amountPaidOnline;
+  const paidOnline = state.meta.paymentMode === "stripe";
   const loyalty = state.meta.loyaltyCreditAmount ?? 0;
   const [isSavingPdf, setIsSavingPdf] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
@@ -37,7 +39,11 @@ export function ConfirmStep() {
   return (
     <KioskPanel
       title="Booking reserved"
-      subtitle="Thank you — please complete payment and document checks at the counter."
+      subtitle={
+        paidOnline
+          ? "Thank you — please complete document checks at the counter."
+          : "Thank you — please complete payment and document checks at the counter."
+      }
       icon={<PartyPopper className="h-6 w-6" aria-hidden />}
     >
       <p className="text-sm text-slate-600">Your booking reference</p>
@@ -51,15 +57,30 @@ export function ConfirmStep() {
             Booking status: <strong>confirmed / reserved</strong> for your dates.
           </li>
           <li>
-            Payment status: <strong>pending</strong>
-            {dueAtCounter != null ? (
+            {paidOnline ? (
               <>
-                {" "}
-                — pay <strong>{formatEur(dueAtCounter)}</strong> at the counter
+                Payment status:{" "}
+                <strong>
+                  {amountPaidOnline != null && amountPaidOnline > 0 ? "paid online" : "settled"}
+                </strong>
+                {amountPaidOnline != null && amountPaidOnline > 0
+                  ? ` — ${formatEur(amountPaidOnline)} charged via Stripe`
+                  : ""}
                 {deposit != null ? ` (includes ${formatEur(deposit)} security deposit)` : ""}.
               </>
             ) : (
-              " — pay rental + security deposit at the counter."
+              <>
+                Payment status: <strong>pending</strong>
+                {dueAtCounter != null ? (
+                  <>
+                    {" "}
+                    — pay <strong>{formatEur(dueAtCounter)}</strong> at the counter
+                    {deposit != null ? ` (includes ${formatEur(deposit)} security deposit)` : ""}.
+                  </>
+                ) : (
+                  " — pay rental + security deposit at the counter."
+                )}
+              </>
             )}
           </li>
           {loyalty > 0 ? (
