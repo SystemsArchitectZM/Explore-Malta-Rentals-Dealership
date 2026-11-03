@@ -391,11 +391,10 @@ export function KioskBookingProvider({ children }: PropsWithChildren) {
       }
 
       const acceptedAt = new Date().toISOString();
+      // Keep customer / driver / hotel details through the confirm step so Save as PDF
+      // can include them. resetSession (and inactivity) still clears everything afterward.
       setStateInternal((prev) => ({
         ...prev,
-        customer: INITIAL_KIOSK_BOOKING_STATE.customer,
-        additionalDriver: INITIAL_KIOSK_BOOKING_STATE.additionalDriver,
-        hotelCode: INITIAL_KIOSK_BOOKING_STATE.hotelCode,
         meta: {
           bookingReference: result.bookingReference,
           submittedAt: acceptedAt,

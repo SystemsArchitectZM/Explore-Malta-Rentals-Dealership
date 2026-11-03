@@ -1,9 +1,11 @@
 "use client";
 
-import { PartyPopper } from "lucide-react";
+import { useState } from "react";
+import { Download, PartyPopper } from "lucide-react";
 import { useRouter } from "@/i18n/navigation";
 import { KioskPanel } from "@/features/kiosk/components/kiosk-panel";
 import { useKioskBooking } from "@/features/kiosk/context/kiosk-booking-context";
+import { downloadKioskBookingPdf } from "@/features/kiosk/lib/download-booking-pdf";
 import { formatEur } from "@/lib/pricing/calculate-booking-price";
 
 export function ConfirmStep() {
@@ -12,10 +14,24 @@ export function ConfirmStep() {
   const deposit = state.meta.depositAmount;
   const dueAtCounter = state.meta.dueAtCounter;
   const loyalty = state.meta.loyaltyCreditAmount ?? 0;
+  const [isSavingPdf, setIsSavingPdf] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   const startNew = async () => {
     await resetSession();
     router.replace("/kiosk");
+  };
+
+  const saveAsPdf = async () => {
+    setPdfError(null);
+    setIsSavingPdf(true);
+    try {
+      await downloadKioskBookingPdf(state);
+    } catch {
+      setPdfError("Could not save the PDF. Please try again.");
+    } finally {
+      setIsSavingPdf(false);
+    }
   };
 
   return (
@@ -56,13 +72,29 @@ export function ConfirmStep() {
           </li>
         </ul>
       </div>
-      <button
-        type="button"
-        onClick={() => void startNew()}
-        className="mt-8 min-h-14 w-full rounded-xl bg-[#f9900f] px-6 text-base font-bold text-white sm:w-auto"
-      >
-        Start New Booking
-      </button>
+      {pdfError ? (
+        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          {pdfError}
+        </p>
+      ) : null}
+      <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        <button
+          type="button"
+          onClick={() => void saveAsPdf()}
+          disabled={isSavingPdf}
+          className="inline-flex min-h-14 items-center justify-center gap-2 rounded-xl border-2 border-[#0c2340] bg-white px-6 text-base font-bold text-[#0c2340] disabled:opacity-60"
+        >
+          <Download className="h-5 w-5" aria-hidden />
+          {isSavingPdf ? "Saving PDF…" : "Save as PDF"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void startNew()}
+          className="min-h-14 rounded-xl bg-[#f9900f] px-6 text-base font-bold text-white"
+        >
+          Start New Booking
+        </button>
+      </div>
     </KioskPanel>
   );
 }
